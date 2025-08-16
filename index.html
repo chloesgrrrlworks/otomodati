@@ -50,9 +50,8 @@
       box-shadow:0 4px 10px rgba(0,0,0,.18);
       font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;
       cursor:grab;user-select:none;touch-action:none;
-      /* 折返しは content 側で制御する。ここではさせない */
-      word-break: normal;
-      overflow-wrap: normal;
+      /* 自動折返しは基本禁止。制御は content 側で行う。 */
+      word-break: normal; overflow-wrap: normal;
     }
     .note.dragging{opacity:.85;cursor:grabbing}
     .note .close{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--danger);color:var(--danger);font-weight:700;line-height:19px;text-align:center;display:none;cursor:pointer}
@@ -72,8 +71,10 @@
     .error{color:#b00020;font-size:.85rem}
     .invalid{border-color:#b00020 !important; outline:0}
 
+    /* 文字数ルール適用箇所。URLは常に1行固定で切り捨て（横スクロールさせない） */
     .note .content{ white-space: pre-wrap; word-break: normal; overflow-wrap: normal; }
-    .note .content.single-line{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .note .content.single-line{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display:block; max-width:100%; }
+    .note .content a{ white-space: nowrap; display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   </style>
 </head>
 <body>
@@ -246,7 +247,9 @@
         const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
         const demo = {
           id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
-          created: `${y}-${m}-${d}`, photoDataURL:'assets/images/CGW_LOGO.png', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+          created: `${y}-${m}-${d}`,
+          photoDataURL:'assets/images/CGW_LOGO.png',
+          goodbye:'—', goodbyeActive:false, deleteConfirm:true,
           demo: true,
           notes: [
             {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
@@ -298,7 +301,7 @@
           {text:`出会った場所：${place}`, x:24,  y:120, colorId:2}
         ]
       };
-      const fs = loadFriends().filter(x=>!x.demo);
+      const fs = loadFriends().filter(x=>!x.demo); // デモ消去
       fs.push(f); saveFriends(fs);
       localStorage.setItem('onboarded','1');
       initNotesModal.close();
@@ -319,8 +322,10 @@
       }).forEach(f=>{
         const card = document.createElement('div'); card.className='card';
         const ph = document.createElement('div'); ph.className='ph';
-        if(f.photoDataURL){ const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img); }
-        else { ph.textContent='No Photo'; }
+        if(f.photoDataURL){
+          const img=new Image();
+          img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img);
+        } else { ph.textContent='No Photo'; }
         const body = document.createElement('div'); body.className='body';
         body.innerHTML = `<div style="font-weight:700">${f.name||'(無名)'}</div>
           <div class="hint">${f.breed||'-'}／${f.color||'-'}／${f.age||'-'}歳</div>
@@ -340,7 +345,8 @@
     // ========= テキスト整形：12=1行、13〜24=2行、25〜切り捨て（全角基準） =========
     function visualLen(str){ let w=0; for (const ch of (str||'')) w += (ch.charCodeAt(0)<=0xFF)?0.5:1; return w; }
     function splitToTwoLines(text, firstLimit=12, maxTotal=24){
-      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:false };
+      // URL を含む場合は常に 1 行固定（リンクは横スクロールさせず、末尾を省略）
+      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:true };
       const raw=(text||'').replace(/\r?\n/g,'');
       let line1='', line2='', w=0;
       for (const ch of raw){
@@ -352,7 +358,9 @@
       if (!line2) return { html: line1, singleLine: true };
       return { html: line1+'\n'+line2, singleLine:false };
     }
-    function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
+    function linkify(t){
+      return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`);
+    }
 
     // ========= 画像：ObjectURL プレビュー → JPEG圧縮保存 =========
     function isHEIC(file){
@@ -360,7 +368,6 @@
       return type.includes('heic') || name.endsWith('.heic') || type.includes('heif');
     }
     async function fileToCompressedDataURL(file, maxDim=1600, quality=0.85){
-      // まず createImageBitmap を試す
       let imgBitmap = null;
       if (self.createImageBitmap) {
         try{ imgBitmap = await createImageBitmap(file); }catch(_){}
@@ -428,7 +435,7 @@
         deleteConfirm: true,
         notes: notesInit
       };
-      const fs = loadFriends().filter(x => !x.demo);
+      const fs = loadFriends().filter(x => !x.demo); // デモ消去
       fs.push(f); saveFriends(fs);
       location.hash = `${routes.edit}/${f.id}`;
     });
@@ -438,8 +445,9 @@
     const nameEl=$('#name'), breedEl=$('#breed'), colorEl=$('#color'), ageEl=$('#age'), createdEl=$('#created');
     const noteModal = $('#noteModal'), noteText = $('#noteText');
     const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
-    const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
+    const chkConfirm = $('#chkConfirm');
     const btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
+    const editPhoto = $('#edit-photo'); // ← 重複定義を1つに統一
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
@@ -457,13 +465,18 @@
       });
 
       const content=document.createElement('div'); content.className='content';
+
       const fmt = splitToTwoLines(text, 12, 24);
       if (fmt.singleLine) content.classList.add('single-line');
+      // \n → <br>、URLは常にnowrapで省略表示
       content.innerHTML = linkify(fmt.html).replace(/\n/g,'<br>');
 
       note.appendChild(close); note.appendChild(content);
 
-      note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
+      note.addEventListener('click', e=>{
+        if(e.target.closest('.close')) return;
+        if(!note.classList.contains('dragging')) note.classList.toggle('show-close');
+      });
 
       let dragging=false, offX=0, offY=0;
       note.addEventListener('pointerdown', e=>{
@@ -514,7 +527,6 @@
       });
     });
 
-    const editPhoto = $('#edit-photo');
     editPhoto.addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if(!file) return;
       if (isHEIC(file)) alert('HEICはブラウザで不安定です。JPEG/PNGに変換してから選んでください。');
@@ -574,7 +586,6 @@
     window.addEventListener('hashchange', onRoute);
     onRoute();
 
-    // （任意）Service Worker を使う場合だけ有効に
     // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   </script>
 </body>
