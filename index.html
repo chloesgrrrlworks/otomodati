@@ -66,6 +66,9 @@
     dialog::backdrop{background:rgba(0,0,0,.3)}
     .error{color:#b00020;font-size:.85rem}
     .invalid{border-color:#b00020 !important; outline:0}
+
+    /* 追加：改行反映 */
+    .note .content{ white-space: pre-wrap; }
   </style>
 </head>
 <body>
@@ -240,7 +243,8 @@
         const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
         const demo = {
           id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
-          created: `${y}-${m}-${d}`, photoDataURL:'', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+          created: `${y}-${m}-${d}`, photoDataURL:'assets/images/CGW_LOGO.png', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+          demo: true,
           notes: [
             {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
             {text:'あだ名：クロちゃん', x:220, y:60, colorId:3},
@@ -255,9 +259,11 @@
     const listEl = $('#list'); const qEl = $('#q');
     function renderList(){
       const q = (qEl.value||'').trim().toLowerCase();
-      const fs = loadFriends();
+      const fsAll = loadFriends();
+      const hasReal = fsAll.some(f => !f.demo);
+      const data = hasReal ? fsAll.filter(f => !f.demo) : fsAll;
       listEl.innerHTML = '';
-      fs.filter(f=>{
+      data.filter(f=>{
         if(!q) return true;
         return [f.name,f.breed].some(v=>String(v||'').toLowerCase().includes(q));
       }).forEach(f=>{
@@ -279,12 +285,13 @@
     }
     $('#goNew').addEventListener('click', ()=> location.hash = routes.add);
     qEl.addEventListener('input', renderList);
-    btnBack.addEventListener('click', ()=> history.pushState({},'', routes.list));
+    // 修正：hash で戻る（pushState は hashchange を発火しないため）
+    btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
 
     // ========= 新規登録 =========
     const newName = $('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created'), newPhoto=$('#new-photo');
     newCreated.valueAsDate = new Date();
-    $('#cancelNew').addEventListener('click', ()=> history.pushState({},'', routes.list));
+    $('#cancelNew').addEventListener('click', ()=> location.hash = routes.list);
     let newPhotoDataURL = '';
     newPhoto.addEventListener('change', async (e)=>{
       const f = e.target.files?.[0]; if(!f) return;
@@ -349,7 +356,9 @@
         deleteConfirm: true,
         notes: notesInit
       };
-      const fs = loadFriends(); fs.push(f); saveFriends(fs);
+      // 既存のデモを掃除してから保存（= 1人でも実データが入ったらデモ消滅）
+      const fs = loadFriends().filter(x => !x.demo);
+      fs.push(f); saveFriends(fs);
       initNotesModal.close();
       location.hash = `${routes.edit}/${f.id}`;
     }
@@ -364,7 +373,18 @@
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
+
+    // URL自動リンク化
     function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
+    function hasURL(t){ return /(https?:\/\/[^\s]+)/.test(t); }
+    // 表示専用：12文字まで1段、13〜24文字は2段に改行、25文字以降は切り捨て（URL含む場合は整形しない）
+    function formatNoteTextForDisplay(t){
+      if (hasURL(t)) return (t||'');
+      const raw = (t||'').replace(/\r?\n/g, '');
+      const cut = raw.slice(0, 24);
+      if (cut.length <= 12) return cut;
+      return cut.slice(0,12) + '\n' + cut.slice(12);
+    }
 
     let currentId = null;
     function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
@@ -398,7 +418,9 @@
         f.notes = (f.notes||[]).filter(n=> !(n.text===text && n.x===x && n.y===y && n.colorId===colorId));
         saveFriend(f); note.remove();
       });
-      const content=document.createElement('div'); content.className='content'; content.innerHTML=linkify(text);
+      const content=document.createElement('div'); content.className='content';
+      const displayText = formatNoteTextForDisplay(text);
+      content.innerHTML = linkify(displayText).replace(/\n/g,'<br>');
       note.appendChild(close); note.appendChild(content);
 
       note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
