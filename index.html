@@ -98,9 +98,7 @@
     <section id="view-list" data-view class="on">
       <div class="row" style="justify-content:space-between;margin-bottom:.5rem">
         <div class="hint">登録したお友達の一覧です。クリックで編集へ。</div>
-        <div class="toolbar">
-          <input id="q" placeholder="名前・犬種で検索" />
-        </div>
+        <div class="toolbar"><input id="q" placeholder="名前・犬種で検索" /></div>
       </div>
       <div id="list" class="grid cards"></div>
       <footer>
@@ -188,7 +186,7 @@
     </section>
   </div>
 
-  <!-- 初回必須入力モーダル（キャンセル不可） -->
+  <!-- 初回必須入力モーダル（キャンセル不可 / 未対応ブラウザは安全にスキップ） -->
   <dialog id="initNotesModal">
     <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">最初の付箋（必須）</div>
     <form method="dialog" id="initNotesForm" style="padding:14px 16px;display:grid;gap:.75rem">
@@ -213,25 +211,26 @@
 
   <script>
     // ========= ユーティリティ＆テーマ =========
-    const $ = s => document.querySelector(s);
-    const routes = { list:'#/list', add:'#/new', edit:'#/edit' };
-    const views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
-    const btnBack = $('#btnBack');
-    const themeSel = $('#themeSel');
+    function $(s){ return document.querySelector(s); }
+    function $all(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+    var routes = { list:'#/list', add:'#/new', edit:'#/edit' };
+    var views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
+    var btnBack = $('#btnBack');
+    var themeSel = $('#themeSel');
 
     function setThemeMeta(t){ document.querySelector('meta[name="theme-color"]').setAttribute('content', t==='dark'?'#111215':'#ffffff'); }
     (function initTheme(){
-      const t = localStorage.getItem('theme') || 'light';
+      var t = localStorage.getItem('theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
       themeSel.value = t; setThemeMeta(t);
-      themeSel.addEventListener('change', ()=>{
-        const v = themeSel.value;
+      themeSel.addEventListener('change', function(){
+        var v = themeSel.value;
         document.documentElement.setAttribute('data-theme', v);
         localStorage.setItem('theme', v); setThemeMeta(v);
       });
     })();
     function show(view){
-      Object.values(views).forEach(v=>v.classList.remove('on'));
+      for (var k in views){ views[k].classList.remove('on'); }
       views[view].classList.add('on');
       btnBack.style.display = (view==='list') ? 'none' : 'inline-block';
     }
@@ -241,212 +240,234 @@
     function nid(){ return 'n-' + Math.random().toString(36).slice(2,10); }
     function loadFriends(){ try { return JSON.parse(localStorage.getItem('friends')||'[]'); } catch(e){ return []; } }
     function saveFriends(arr){ localStorage.setItem('friends', JSON.stringify(arr)); }
-    function getFriend(id){ return loadFriends().find(f=>f.id===id); }
-    function setFriend(obj){ const fs=loadFriends(); const i=fs.findIndex(x=>x.id===obj.id); if(i>=0){ fs[i]=obj; saveFriends(fs);} }
+    function getFriend(id){ var fs=loadFriends(); for(var i=0;i<fs.length;i++){ if(fs[i].id===id) return fs[i]; } return null; }
+    function setFriend(obj){ var fs=loadFriends(); for(var i=0;i<fs.length;i++){ if(fs[i].id===obj.id){ fs[i]=obj; saveFriends(fs); return; } } }
 
-    // ========= デフォ付箋（呼び名＋出会った場所 1枚。両方空なら作らない） =========
+    // ========= デフォ付箋 =========
     function buildProfileNote(nick, place){
-      const parts=[];
-      if (nick && nick.trim())  parts.push(`呼び名：${nick.trim()}`);
-      if (place && place.trim()) parts.push(`出会った場所：${place.trim()}`);
+      var parts=[];
+      if (nick && String(nick).trim())  parts.push('呼び名：'+String(nick).trim());
+      if (place && String(place).trim()) parts.push('出会った場所：'+String(place).trim());
       if (!parts.length) return null;
       return { id: nid(), text: parts.join('\n'), x:24, y:120, colorId:5 };
     }
 
-    // ========= テキスト整形（12=1行、13〜24=2行、25〜切捨て／全角基準） =========
-    function splitToTwoLines(text, firstLimit=12, maxTotal=24){
-      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:false }; // URL優先
-      const raw=(text||'').replace(/\r?\n/g,'');
-      let l1='', l2='', w=0;
-      for (const ch of raw){
-        const add=(ch.charCodeAt(0)<=0xFF)?0.5:1;  // 半角0.5 / 全角1
+    // ========= テキスト整形（12/24 ルール） =========
+    function splitToTwoLines(text, firstLimit, maxTotal){
+      firstLimit = firstLimit || 12; maxTotal = maxTotal || 24;
+      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:false };
+      var raw=(text||'').replace(/\r?\n/g,'');
+      var l1='', l2='', w=0;
+      for (var i=0;i<raw.length;i++){
+        var ch=raw.charAt(i);
+        var code = raw.charCodeAt(i);
+        var add = (code<=255)?0.5:1; // 半角0.5 / 全角1
         if (w+add<=firstLimit){ l1+=ch; w+=add; }
         else { l2+=ch; w+=add; }
-        if (w>=maxTotal) break;                    // 25〜は切り捨て
+        if (w>=maxTotal) break; // 25〜切捨て
       }
-      return l2 ? { html:l1+'\n'+l2, singleLine:false }
-                : { html:l1,          singleLine:true  };
+      return l2 ? { html:l1+'\n'+l2, singleLine:false } : { html:l1, singleLine:true };
     }
     function escapeHTML(s){
-      return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
     function linkifyAndEscape(t){
-      const esc = escapeHTML(t||'');
-      return esc.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`);
+      var esc = escapeHTML(t||'');
+      return esc.replace(/(https?:\/\/[^\s]+)/g, function(s){ return '<a href="'+s+'" target="_blank" rel="noreferrer noopener">'+s+'</a>'; });
     }
 
-    // ========= 画像関連：HEIC自動変換 + 自動スケール圧縮 =========
+    // ========= 画像：HEIC自動変換 + 自動スケール圧縮 =========
     function isIOS() {
-      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      var ua = navigator.userAgent || navigator.vendor || window.opera || '';
       return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
-    const PIXELS_CAP = isIOS() ? 3_000_000 : 6_000_000; // iOSは安全側
+    var PIXELS_CAP = isIOS() ? 3000000 : 6000000; // iOSは安全側
+
+    function safeName(file){ return (file && file.name ? String(file.name) : '').toLowerCase(); }
+    function safeType(file){ return (file && file.type ? String(file.type) : '').toLowerCase(); }
 
     function isHeicLike(file){
-      const name=(file?.name||'').toLowerCase(), type=(file?.type||'').toLowerCase();
-      return name.endsWith('.heic') || type.includes('heic') || type.includes('heif');
+      var name=safeName(file), type=safeType(file);
+      return /\.heic$/.test(name) || /heic|heif/.test(type);
     }
-    async function toJpegIfHeic(file){
-      if (!isHeicLike(file)) return file;
-      if (typeof heic2any !== 'function') return file; // ライブラリ未読込時は素通し
-      try{
-        const out = await heic2any({ blob:file, toType:'image/jpeg', quality:0.92 });
-        return Array.isArray(out) ? out[0] : out;
-      }catch(e){
-        console.warn('HEIC変換に失敗:', e);
-        alert('HEIC画像の変換に失敗しました。JPEG/PNGをお試しください。');
-        return file;
-      }
+    function toJpegIfHeic(file){
+      if (!isHeicLike(file)) return Promise.resolve(file);
+      if (typeof heic2any !== 'function') return Promise.resolve(file);
+      return heic2any({ blob:file, toType:'image/jpeg', quality:0.92 })
+        .then(function(out){ return Array.isArray(out) ? out[0] : out; })
+        .catch(function(e){
+          console.warn('HEIC変換に失敗:', e);
+          alert('HEIC画像の変換に失敗しました。JPEG/PNGをお試しください。');
+          return file;
+        });
     }
-    async function fileOrBlobToCompressedDataURL(fileOrBlob, maxDimHint=2048, baseQuality=0.85){
-      let bitmap=null;
-      if (self.createImageBitmap){
-        try{ bitmap=await createImageBitmap(fileOrBlob); }catch(_){}
+    function fileOrBlobToCompressedDataURL(fileOrBlob, maxDimHint, baseQuality){
+      maxDimHint = maxDimHint || 2048; baseQuality = baseQuality || 0.85;
+      var bitmap=null;
+      var useBitmap = !!self.createImageBitmap;
+      function drawToDataURL(w, h, imgLike){
+        var maxSide = Math.max(w,h);
+        var scaleBySide = Math.min(1, maxDimHint / maxSide);
+        var scaleByPixels = Math.min(1, Math.sqrt(PIXELS_CAP / (w*h)));
+        var scale = Math.min(scaleBySide, scaleByPixels);
+        var outW = Math.max(1, Math.round(w * scale));
+        var outH = Math.max(1, Math.round(h * scale));
+        var mp = (w*h)/1000000;
+        var quality = (mp >= 12) ? Math.min(0.78, baseQuality) : baseQuality;
+
+        var canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+        canvas.width = outW; canvas.height = outH;
+        ctx.drawImage(imgLike, 0, 0, outW, outH);
+        return canvas.toDataURL('image/jpeg', quality);
       }
-      let w,h, imgEl=null;
-      if (bitmap){
-        w=bitmap.width; h=bitmap.height;
+      if (useBitmap){
+        return createImageBitmap(fileOrBlob).then(function(bmp){
+          bitmap=bmp;
+          return drawToDataURL(bmp.width, bmp.height, bmp);
+        }).catch(function(){
+          // fallback <img>
+          return new Promise(function(res, rej){
+            var url=URL.createObjectURL(fileOrBlob);
+            var img=new Image();
+            img.onload=function(){ var out=drawToDataURL(img.naturalWidth, img.naturalHeight, img); URL.revokeObjectURL(url); res(out); };
+            img.onerror=function(e){ URL.revokeObjectURL(url); rej(e); };
+            img.src=url;
+          });
+        });
       } else {
-        const url=URL.createObjectURL(fileOrBlob);
-        imgEl = await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
-        URL.revokeObjectURL(url);
-        w=imgEl.naturalWidth; h=imgEl.naturalHeight;
+        return new Promise(function(res, rej){
+          var url=URL.createObjectURL(fileOrBlob);
+          var img=new Image();
+          img.onload=function(){ var out=drawToDataURL(img.naturalWidth, img.naturalHeight, img); URL.revokeObjectURL(url); res(out); };
+          img.onerror=function(e){ URL.revokeObjectURL(url); rej(e); };
+          img.src=url;
+        });
       }
-      const maxSide = Math.max(w,h);
-      const scaleBySide = Math.min(1, maxDimHint / maxSide);
-      const scaleByPixels = Math.min(1, Math.sqrt(PIXELS_CAP / (w*h)));
-      const scale = Math.min(scaleBySide, scaleByPixels);
-      const outW = Math.max(1, Math.round(w * scale));
-      const outH = Math.max(1, Math.round(h * scale));
-
-      const mp = (w*h)/1_000_000;
-      const quality = mp >= 12 ? Math.min(0.78, baseQuality) : baseQuality; // 12MP超→少し絞る
-
-      const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
-      canvas.width = outW; canvas.height = outH;
-      if (bitmap) ctx.drawImage(bitmap, 0, 0, outW, outH);
-      else        ctx.drawImage(imgEl, 0, 0, outW, outH);
-
-      return canvas.toDataURL('image/jpeg', quality);
     }
     function previewFromBlob(blob, imgEl){
-      const url = URL.createObjectURL(blob);
-      imgEl.onload = ()=> URL.revokeObjectURL(url);
-      imgEl.onerror = ()=> { URL.revokeObjectURL(url); alert('画像プレビューに失敗しました'); };
+      var url = URL.createObjectURL(blob);
+      imgEl.onload = function(){ URL.revokeObjectURL(url); };
+      imgEl.onerror = function(){ URL.revokeObjectURL(url); alert('画像プレビューに失敗しました'); };
       imgEl.src = url;
     }
 
     // ========= 初回必須オンボーディング =========
-    const initNotesModal = $('#initNotesModal');
-    const initNotesForm  = $('#initNotesForm');
-    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
-    const errNick = $('#errNick'), errPlace = $('#errPlace');
+    var initNotesModal = $('#initNotesModal');
+    var initNotesForm  = $('#initNotesForm');
+    var nickInput = $('#nickInput'), placeInput = $('#placeInput');
+    var errNick = $('#errNick'), errPlace = $('#errPlace');
 
-    initNotesModal.addEventListener('cancel', e => e.preventDefault()); // キャンセル不可
-    initNotesModal.addEventListener('close', e => {
-      if (!localStorage.getItem('onboarded')) initNotesModal.showModal();
-    });
+    function canShowModal(dlg){ return dlg && typeof dlg.showModal === 'function'; }
+    function canCloseModal(dlg){ return dlg && typeof dlg.close === 'function'; }
+
+    if (initNotesModal) {
+      initNotesModal.addEventListener('cancel', function(e){ e.preventDefault(); }); // キャンセル不可
+      initNotesModal.addEventListener('close', function(){
+        if (!localStorage.getItem('onboarded') && canShowModal(initNotesModal)) initNotesModal.showModal();
+      });
+    }
+
     function showOnboardingIfNeeded(){
-      const fs = loadFriends();
-      if (!localStorage.getItem('onboarded') && fs.length===0) {
+      var fs = loadFriends();
+      if (!localStorage.getItem('onboarded') && fs.length===0 && canShowModal(initNotesModal)) {
         errNick.style.display='none'; errPlace.style.display='none';
         nickInput.value=''; placeInput.value='';
         initNotesModal.showModal();
-        setTimeout(()=>nickInput.focus(),0);
+        setTimeout(function(){ try{ nickInput.focus(); }catch(e){} },0);
       }
     }
-    initNotesForm.addEventListener('submit', (e)=>{
+
+    if (initNotesForm) initNotesForm.addEventListener('submit', function(e){
       e.preventDefault();
-      const nick = nickInput.value.trim();
-      const place = placeInput.value.trim();
+      var nick = (nickInput.value||'').trim();
+      var place = (placeInput.value||'').trim();
       errNick.style.display = nick? 'none':'inline';
       errPlace.style.display = place? 'none':'inline';
       if(!nick || !place) return;
 
-      const t=new Date(); const y=t.getFullYear(); const m=String(t.getMonth()+1).padStart(2,'0'); const d=String(t.getDate()).padStart(2,'0');
-      const profile = buildProfileNote(nick, place);
-      const f = {
+      var t=new Date(); var y=t.getFullYear(); var m=('0'+(t.getMonth()+1)).slice(-2); var d=('0'+t.getDate()).slice(-2);
+      var profile = buildProfileNote(nick, place);
+      var f = {
         id: uuid(),
         name: '', breed:'', color:'', age:'',
-        created: `${y}-${m}-${d}`,
+        created: y+'-'+m+'-'+d,
         photoDataURL: 'assets/images/CGW_LOGO.png',
         goodbye:'—', goodbyeActive:false, deleteConfirm:true,
         notes: [
-          { id: nid(), text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1 },
-          ...(profile ? [profile] : [])
+          { id: nid(), text:'出会い：'+(y+'-'+m+'-'+d), x:24, y:24, colorId:1 }
         ]
       };
-      const fs = loadFriends(); fs.push(f); saveFriends(fs);
+      if (profile) f.notes.push(profile);
+      var fs = loadFriends(); fs.push(f); saveFriends(fs);
       localStorage.setItem('onboarded','1');
-      initNotesModal.close();
-      location.hash = `#/edit/${f.id}`;
+      if (canCloseModal(initNotesModal)) initNotesModal.close();
+      location.hash = '#/edit/'+f.id;
     });
 
     // ========= 一覧 =========
-    const listEl = $('#list'); const qEl = $('#q');
+    var listEl = $('#list'); var qEl = $('#q');
     function renderList(){
-      const q = (qEl.value||'').trim().toLowerCase();
-      const data = loadFriends();
+      var q = String(qEl.value||'').trim().toLowerCase();
+      var data = loadFriends();
       listEl.innerHTML = '';
-      data.filter(f=>{
+      data.filter(function(f){
         if(!q) return true;
-        return [f.name,f.breed].some(v=>String(v||'').toLowerCase().includes(q));
-      }).forEach(f=>{
-        const card = document.createElement('div'); card.className='card';
-        const ph = document.createElement('div'); ph.className='ph';
+        return [f.name,f.breed].some(function(v){ return String(v||'').toLowerCase().indexOf(q) >= 0; });
+      }).forEach(function(f){
+        var card = document.createElement('div'); card.className='card';
+        var ph = document.createElement('div'); ph.className='ph';
         if(f.photoDataURL){
-          const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover';
-          img.onerror=()=>{ img.src='CGW_LOGO.png'; };
+          var img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover';
+          img.onerror=function(){ img.src='CGW_LOGO.png'; };
           ph.innerHTML=''; ph.appendChild(img);
         } else { ph.textContent='No Photo'; }
-        const body = document.createElement('div'); body.className='body';
-        body.innerHTML = `<div style="font-weight:700">${f.name||'(無名)'}</div>
-          <div class="hint">${f.breed||'-'}／${f.color||'-'}／${f.age||'-'}歳</div>
-          <div class="row" style="justify-content:flex-end;margin-top:.5rem">
-            <button class="btn" data-id="${f.id}">編集</button>
-          </div>`;
+        var body = document.createElement('div'); body.className='body';
+        body.innerHTML = '<div style="font-weight:700">'+(f.name||'(無名)')+'</div>\
+          <div class="hint">'+(f.breed||'-')+'／'+(f.color||'-')+'／'+(f.age||'-')+'歳</div>\
+          <div class="row" style="justify-content:flex-end;margin-top:.5rem">\
+            <button class="btn" data-id="'+f.id+'">編集</button>\
+          </div>';
         card.appendChild(ph); card.appendChild(body); listEl.appendChild(card);
       });
-      listEl.querySelectorAll('button[data-id]').forEach(b=>{
-        b.addEventListener('click', ()=> location.hash = `${routes.edit}/${b.dataset.id}`);
+      $all('button[data-id]').forEach(function(b){
+        b.addEventListener('click', function(){ location.hash = '#/edit/'+b.getAttribute('data-id'); });
       });
     }
 
     // ========= 新規登録 =========
-    const newName=$('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created');
-    const newPhotoInput = $('#new-photo'); newCreated.valueAsDate = new Date();
-    $('#cancelNew').addEventListener('click', ()=> location.hash = routes.list);
-    let newPhotoDataURL = '';
+    var newName=$('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created');
+    var newPhotoInput = $('#new-photo'); if (newCreated) newCreated.valueAsDate = new Date();
+    $('#cancelNew').addEventListener('click', function(){ location.hash = routes.list; });
+    var newPhotoDataURL = '';
 
-    newPhotoInput.addEventListener('change', async (e)=>{
-      const original = e.target.files?.[0]; if(!original) return;
-      try{
-        const converted = await toJpegIfHeic(original);              // HEIC→JPEG
-        previewFromBlob(converted, $('#photo'));                      // プレビュー（編集ビューのimgに反映）
-        newPhotoDataURL = await fileOrBlobToCompressedDataURL(       // 自動スケール＆圧縮
-          converted, 2048, 0.85
-        );
-      }catch(err){
-        alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明'));
-      }finally{
-        e.target.value='';
-      }
+    newPhotoInput.addEventListener('change', function(e){
+      var files = e.target.files; var original = files && files[0]; if(!original) return;
+      toJpegIfHeic(original).then(function(converted){
+        previewFromBlob(converted, $('#photo')); // 編集ビューimgに表示
+        return fileOrBlobToCompressedDataURL(converted, 2048, 0.85);
+      }).then(function(dataURL){
+        newPhotoDataURL = dataURL;
+      }).catch(function(err){
+        alert('画像の読み込みに失敗しました：' + (err && err.message ? err.message : '原因不明'));
+      }).finally ? 
+        newPhotoInput.value='' :
+        (function(){ newPhotoInput.value=''; })();
     });
 
-    $('#saveNew').addEventListener('click', ()=>{
-      const createdVal = newCreated.value || new Date().toISOString().slice(0,10);
-      const baseX = 24, baseY = 24;
-      const notesInit = [
-        { id:nid(), text: `出会い：${createdVal}`, x: baseX, y: baseY, colorId: 1 },
-        { id:nid(), text: `あだ名：—`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
-        { id:nid(), text: `出会った場所：—`, x: baseX, y: baseY + 96, colorId: 2 }
+    $('#saveNew').addEventListener('click', function(){
+      var createdVal = (newCreated && newCreated.value) ? newCreated.value : new Date().toISOString().slice(0,10);
+      var baseX = 24, baseY = 24;
+      var notesInit = [
+        { id:nid(), text: '出会い：'+createdVal, x: baseX, y: baseY, colorId: 1 },
+        { id:nid(), text: 'あだ名：—',           x: baseX + 196, y: baseY + 16, colorId: 3 },
+        { id:nid(), text: '出会った場所：—',     x: baseX, y: baseY + 96, colorId: 2 }
       ];
-      const f = {
+      var f = {
         id: uuid(),
-        name: newName.value.trim(),
-        breed: newBreed.value.trim(),
-        color: newColor.value.trim(),
-        age: newAge.value.trim(),
+        name: (newName.value||'').trim(),
+        breed: (newBreed.value||'').trim(),
+        color: (newColor.value||'').trim(),
+        age: (newAge.value||'').trim(),
         created: createdVal,
         photoDataURL: newPhotoDataURL || 'assets/images/CGW_LOGO.png',
         goodbye: '—',
@@ -454,133 +475,133 @@
         deleteConfirm: true,
         notes: notesInit
       };
-      const fs = loadFriends(); fs.push(f); saveFriends(fs);
-      location.hash = `${routes.edit}/${f.id}`;
+      var fs = loadFriends(); fs.push(f); saveFriends(fs);
+      location.hash = '#/edit/'+f.id;
     });
 
     // ========= 個別編集 =========
-    const noteModal = $('#noteModal'), noteText = $('#noteText');
-    const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
-    const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
-    const btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
+    var noteModal = $('#noteModal'), noteText = $('#noteText');
+    var goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
+    var editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
+    var btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
 
     function createNote(nObj, f){
-      const {id, text} = nObj;
-      const note=document.createElement('div'); note.className='note'; note.dataset.color=String(nObj.colorId||randomColorId()); note.dataset.id=id;
+      var id = nObj.id, text = nObj.text||'';
+      var note=document.createElement('div'); note.className='note'; note.setAttribute('data-color', String(nObj.colorId||randomColorId())); note.setAttribute('data-id', id);
       note.style.left=(nObj.x||40)+'px'; note.style.top=(nObj.y||40)+'px';
 
-      const close=document.createElement('button'); close.type='button'; close.className='close'; close.textContent='×'; close.title='削除';
-      close.addEventListener('click', e=>{
+      var close=document.createElement('button'); close.type='button'; close.className='close'; close.textContent='×'; close.title='削除';
+      close.addEventListener('click', function(e){
         e.stopPropagation();
         if(chkConfirm.checked && !confirm('この付箋を削除しますか？')) return;
-        f.notes = (f.notes||[]).filter(x=> x.id!==id);
+        f.notes = (f.notes||[]).filter(function(x){ return x.id!==id; });
         setFriend(f); note.remove();
       });
 
-      const content=document.createElement('div'); content.className='content';
-      const fmt = splitToTwoLines(text, 12, 24);
+      var content=document.createElement('div'); content.className='content';
+      var fmt = splitToTwoLines(text, 12, 24);
       if (fmt.singleLine) content.classList.add('single-line');
       content.innerHTML = linkifyAndEscape(fmt.html).replace(/\n/g,'<br>');
 
       note.appendChild(close); note.appendChild(content);
 
-      note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
+      note.addEventListener('click', function(e){ if(e.target.closest && e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
 
-      let dragging=false, offX=0, offY=0;
-      note.addEventListener('pointerdown', e=>{
-        if(e.target.closest('.close')) return;
-        dragging=true; note.classList.add('dragging'); note.setPointerCapture(e.pointerId);
-        const r=note.getBoundingClientRect(); offX=e.clientX-r.left; offY=e.clientY-r.top;
+      var dragging=false, offX=0, offY=0;
+      note.addEventListener('pointerdown', function(e){
+        if(e.target.closest && e.target.closest('.close')) return;
+        dragging=true; note.classList.add('dragging'); if (note.setPointerCapture) note.setPointerCapture(e.pointerId);
+        var r=note.getBoundingClientRect(); offX=e.clientX-r.left; offY=e.clientY-r.top;
       });
-      note.addEventListener('pointermove', e=>{
+      note.addEventListener('pointermove', function(e){
         if(!dragging) return;
-        const s=$('#stage').getBoundingClientRect(), n=note.getBoundingClientRect();
-        const L=clamp(e.clientX - s.left - offX, 0, Math.max(0, s.width - n.width));
-        const T=clamp(e.clientY - s.top  - offY, 0, Math.max(0, s.height - n.height));
+        var s=$('#stage').getBoundingClientRect(), n=note.getBoundingClientRect();
+        var L=clamp(e.clientX - s.left - offX, 0, Math.max(0, s.width - n.width));
+        var T=clamp(e.clientY - s.top  - offY, 0, Math.max(0, s.height - n.height));
         note.style.left=L+'px'; note.style.top=T+'px';
       });
       function stopDrag(){
         if(!dragging) return; dragging=false; note.classList.remove('dragging');
-        const idx = (f.notes||[]).findIndex(x=> x.id===id);
+        var idx = (f.notes||[]).findIndex ? (f.notes||[]).findIndex(function(x){return x.id===id;}) : -1;
         if(idx>=0){ f.notes[idx].x=parseFloat(note.style.left)||0; f.notes[idx].y=parseFloat(note.style.top)||0; setFriend(f); }
       }
       note.addEventListener('pointerup', stopDrag); note.addEventListener('pointercancel', stopDrag);
 
       $('#stage').appendChild(note);
 
-      if(/お別れ/.test(text)){ setTimeout(()=> { $('#goodbyeInput').value=''; $('#goodbyeModal').showModal(); }, 0); }
+      if(/お別れ/.test(text) && canShowModal(goodbyeModal)){ setTimeout(function(){ try{ $('#goodbyeInput').value=''; goodbyeModal.showModal(); }catch(e){} }, 0); }
       return note;
     }
 
-    $('#cancelModal').addEventListener('click', ()=> $('#noteModal').close());
-    $('#saveNote').addEventListener('click', ()=>{
-      const t = $('#noteText').value.trim(); if(!t) return;
-      const f = getFriend(currentId); if(!f) return;
-      const n = {id:nid(), text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
-      f.notes = f.notes||[]; f.notes.push(n); setFriend(f); createNote(n, f); $('#noteModal').close();
+    $('#cancelModal').addEventListener('click', function(){ if (canCloseModal(noteModal)) noteModal.close(); });
+    $('#saveNote').addEventListener('click', function(){
+      var t = String($('#noteText').value||'').trim(); if(!t) return;
+      var f = getFriend(currentId); if(!f) return;
+      var n = {id:nid(), text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
+      f.notes = f.notes||[]; f.notes.push(n); setFriend(f); createNote(n, f); if (canCloseModal(noteModal)) noteModal.close();
     });
-    $('#btnAddNote').addEventListener('click', ()=> { $('#noteText').value=''; $('#noteModal').showModal(); setTimeout(()=>$('#noteText').focus(),0); });
-    $('#btnMetToday').addEventListener('click', ()=>{
-      const t=new Date(); const y=t.getFullYear(); const m=String(t.getMonth()+1).padStart(2,'0'); const d=String(t.getDate()).padStart(2,'0');
-      const text=`今日会った：${y}-${m}-${d}`; const f = getFriend(currentId); if(!f) return;
-      const n={id:nid(), text, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); setFriend(f); createNote(n, f);
+    $('#btnAddNote').addEventListener('click', function(){ $('#noteText').value=''; if (canShowModal(noteModal)) noteModal.showModal(); setTimeout(function(){ try{$('#noteText').focus();}catch(e){} },0); });
+    $('#btnMetToday').addEventListener('click', function(){
+      var t=new Date(); var y=t.getFullYear(); var m=('0'+(t.getMonth()+1)).slice(-2); var d=('0'+t.getDate()).slice(-2);
+      var text='今日会った：'+(y+'-'+m+'-'+d); var f = getFriend(currentId); if(!f) return;
+      var n={id:nid(), text:text, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); setFriend(f); createNote(n, f);
     });
 
     // 入力欄と保存
-    [$('#name'),$('#breed'),$('#color'),$('#age'),$('#created')].forEach(inp=>{
-      inp.addEventListener('change', ()=>{
-        const f = getFriend(currentId); if(!f) return;
+    $all('#name,#breed,#color,#age,#created').forEach(function(inp){
+      inp.addEventListener('change', function(){
+        var f = getFriend(currentId); if(!f) return;
         f.name=$('#name').value; f.breed=$('#breed').value; f.color=$('#color').value; f.age=$('#age').value; f.created=$('#created').value; setFriend(f);
       });
     });
 
     // 画像差し替え（編集）
-    document.getElementById('edit-photo').addEventListener('change', async (e)=>{
-      const original = e.target.files?.[0]; if(!original) return;
-      try{
-        const converted = await toJpegIfHeic(original);                 // HEIC→JPEG
-        previewFromBlob(converted, document.getElementById('photo'));   // プレビュー
-        const dataURL = await fileOrBlobToCompressedDataURL(converted, 2048, 0.85); // 自動スケール＆圧縮
-        const f = getFriend(currentId); if(!f) return; f.photoDataURL=dataURL; setFriend(f);
-      }catch(err){
-        alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明'));
-      }finally{
-        e.target.value='';
-      }
+    document.getElementById('edit-photo').addEventListener('change', function(e){
+      var files=e.target.files; var original = files && files[0]; if(!original) return;
+      toJpegIfHeic(original).then(function(converted){
+        previewFromBlob(converted, document.getElementById('photo'));
+        return fileOrBlobToCompressedDataURL(converted, 2048, 0.85);
+      }).then(function(dataURL){
+        var f = getFriend(currentId); if(!f) return; f.photoDataURL=dataURL; setFriend(f);
+      }).catch(function(err){
+        alert('画像の読み込みに失敗しました：' + (err && err.message ? err.message : '原因不明'));
+      }).finally ?
+        (e.target.value='') :
+        (function(){ e.target.value=''; })();
     });
 
     // お別れ保存
-    document.getElementById('goodbyeSave').addEventListener('click', ()=>{
-      const f = getFriend(currentId); if(!f) return;
-      const t = document.getElementById('goodbyeInput').value.trim();
+    document.getElementById('goodbyeSave').addEventListener('click', function(){
+      var f = getFriend(currentId); if(!f) return;
+      var t = String(document.getElementById('goodbyeInput').value||'').trim();
       if(t){ f.goodbye=t; f.goodbyeActive=true; setFriend(f); document.getElementById('goodbyeText').textContent=t; document.getElementById('card').classList.add('goodbye'); }
-      document.getElementById('goodbyeModal').close();
+      if (canCloseModal(goodbyeModal)) goodbyeModal.close();
     });
-    document.getElementById('goodbyeCancel').addEventListener('click', ()=> document.getElementById('goodbyeModal').close());
+    document.getElementById('goodbyeCancel').addEventListener('click', function(){ if (canCloseModal(goodbyeModal)) goodbyeModal.close(); });
 
     // バックアップ
-    document.getElementById('btnExport').addEventListener('click', ()=>{
-      const f = getFriend(currentId); if(!f) return;
-      const blob = new Blob([JSON.stringify(f,null,2)], {type:'application/json'});
-      const a = document.createElement('a'); const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      a.href = URL.createObjectURL(blob); a.download = `friend-${f.name||f.id}-${ts}.json`; a.click(); URL.revokeObjectURL(a.href);
+    document.getElementById('btnExport').addEventListener('click', function(){
+      var f = getFriend(currentId); if(!f) return;
+      var blob = new Blob([JSON.stringify(f,null,2)], {type:'application/json'});
+      var a = document.createElement('a'); var ts = new Date().toISOString().replace(/[:.]/g,'-');
+      a.href = URL.createObjectURL(blob); a.download = 'friend-'+(f.name||f.id)+'-'+ts+'.json'; a.click(); URL.revokeObjectURL(a.href);
     });
-    document.getElementById('btnImport').addEventListener('change', async (e)=>{
-      const file = e.target.files?.[0]; if(!file) return;
-      try{
-        const text = await file.text(); const json = JSON.parse(text);
+    document.getElementById('btnImport').addEventListener('change', function(e){
+      var files=e.target.files; var file = files && files[0]; if(!file) return;
+      file.text().then(function(text){
+        var json = JSON.parse(text);
         if(!json.id || json.id!==currentId){ alert('別のお友達データの可能性があります。'); return; }
         setFriend(json); bindEdit(json); alert('復元しました');
-      }catch(err){ alert('復元に失敗：'+err.message); }
+      }).catch(function(err){ alert('復元に失敗：'+(err && err.message ? err.message : '')); });
       e.target.value='';
     });
 
     // ========= ルーティング =========
-    const qEl = $('#q');
-    let currentId = null;
+    var qEl = $('#q');
+    var currentId = null;
 
     function bindEdit(f){
       currentId = f.id;
@@ -593,32 +614,60 @@
       document.getElementById('goodbyeText').textContent = f.goodbye || '—';
       if(f.goodbyeActive) document.getElementById('card').classList.add('goodbye'); else document.getElementById('card').classList.remove('goodbye');
       document.getElementById('chkConfirm').checked = !!f.deleteConfirm;
-      document.getElementById('stage').querySelectorAll('.note').forEach(n=>n.remove());
-      (f.notes||[]).forEach(n=> createNote(n, f));
+      $all('#stage .note').forEach(function(n){ n.parentNode.removeChild(n); });
+      (f.notes||[]).forEach(function(n){ createNote(n, f); });
+    }
+
+    function renderListAndMaybeOnboard(){
+      renderList();
+      showOnboardingIfNeeded();
     }
 
     function onRoute(){
-      const h = location.hash || routes.list;
-      if(h.startsWith('#/edit/')){
-        const id = h.split('/')[2]; const f = getFriend(id);
+      var h = location.hash || routes.list;
+      if(h.indexOf('#/edit/')===0){
+        var id = h.split('/')[2]; var f = getFriend(id);
         if(!f){ alert('データが見つかりません'); location.hash = routes.list; return; }
         show('edit'); bindEdit(f);
       } else if(h===routes.add){
         show('add');
       } else {
-        show('list'); renderList(); showOnboardingIfNeeded();
+        show('list'); renderListAndMaybeOnboard();
       }
     }
     window.addEventListener('hashchange', onRoute);
+
+    // ========= デモseed（空なら1件作る） =========
+    (function seed(){
+      var fs = loadFriends();
+      if(fs.length===0){
+        var t=new Date(); var y=t.getFullYear(); var m=('0'+(t.getMonth()+1)).slice(-2); var d=('0'+t.getDate()).slice(-2);
+        var demo = {
+          id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
+          created: y+'-'+m+'-'+d,
+          photoDataURL:'assets/images/CGW_LOGO.png',
+          goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+          notes: [ {id:nid(), text:'出会い：'+(y+'-'+m+'-'+d), x:24, y:24, colorId:1 } ]
+        };
+        var profileDemo = buildProfileNote('クロエ','長門牧場ドッグラン');
+        if (profileDemo) demo.notes.push(profileDemo);
+        saveFriends([demo]);
+      }
+    })();
+
+    // 初期描画
     onRoute();
 
     // 一覧UIイベント
-    document.getElementById('goNew').addEventListener('click', ()=> location.hash = routes.add);
-    btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
+    document.getElementById('goNew').addEventListener('click', function(){ location.hash = routes.add; });
+    btnBack.addEventListener('click', function(){ location.hash = routes.list; });
     qEl.addEventListener('input', renderList);
 
     // Service Worker を使う場合は別途
-    // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+    // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+
+    // 開発時のエラー確認に（本番で邪魔なら外してOK）
+    window.addEventListener('error', function(e){ console.log('JS Error:', e.message, e.filename, e.lineno); });
   </script>
 </body>
 </html>
