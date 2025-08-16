@@ -5,8 +5,6 @@
   <title>お友達記録アプリ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -21,7 +19,7 @@
       --bg:#fff;--fg:#000;--card:#fff;--muted:#000;--border:#000;--btn:#fff;--btn-bd:#000;--link:#00f;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans JP",sans-serif}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans JP","Yomogi",cursive}
     header{position:sticky;top:0;z-index:10;display:flex;gap:.75rem;align-items:center;background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1rem}
     header h1{margin:0;font-size:1.05rem}
     .spacer{flex:1}
@@ -36,37 +34,49 @@
     .card .body{padding:.75rem}
     .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
     label{font-size:.85rem;color:var(--muted)}
-    input,select,textarea{font:inherit;border:1px solid var(--btn-bd);background:var(--btn);color:var(--fg);padding:.5rem .6rem;border-radius:.5rem}
+    input,textarea{font:inherit;border:1px solid var(--btn-bd);background:var(--btn);color:var(--fg);padding:.5rem .6rem;border-radius:.5rem}
     .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
     footer{display:flex;justify-content:center;align-items:center;gap:.5rem;color:var(--muted);padding:1rem}
-    footer img{height:20px}
+    footer img{height:22px}
 
     /* 編集ビュー（付箋） */
     .stage{position:relative;width:100%;aspect-ratio:4/3;background:#e0e0e0;overflow:hidden;border-radius:12px}
     [data-theme="dark"] .stage{background:#2a2d33}
     .stage img{width:100%;height:100%;object-fit:cover;display:block}
-    .note{position:absolute;min-width:120px;max-width:240px;min-height:80px;padding:10px 12px 24px 12px;border-radius:8px;
-      box-shadow:0 4px 10px rgba(0,0,0,.18);font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;cursor:grab;user-select:none;word-break:break-word;touch-action:none;border:1px solid rgba(0,0,0,.06)}
+
+    .note{
+      position:absolute;min-width:120px;max-width:240px;min-height:64px;
+      padding:10px 12px 24px 12px;border-radius:8px;border:1px solid rgba(0,0,0,.06);
+      box-shadow:0 4px 10px rgba(0,0,0,.18);
+      font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;
+      cursor:grab;user-select:none;touch-action:none;
+      /* 折返しは content 側で管理 */
+      word-break: normal; overflow-wrap: normal;
+    }
     .note.dragging{opacity:.85;cursor:grabbing}
     .note .close{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--danger);color:var(--danger);font-weight:700;line-height:19px;text-align:center;display:none;cursor:pointer}
     .note.show-close .close{display:inline-block}
     .note[data-color="1"]{background:var(--note1)} .note[data-color="2"]{background:var(--note2)}
     .note[data-color="3"]{background:var(--note3)} .note[data-color="4"]{background:var(--note4)} .note[data-color="5"]{background:var(--note5)}
     .overlay{position:absolute;inset:0;background:rgba(120,120,120,.45);display:none;align-items:flex-end;justify-content:flex-end;padding:8px;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.5)}
-    .goodbye .overlay{display:flex}
+    .goodbye .overlay{display:flex;filter:grayscale(1)}
     .info{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-top:.75rem}
     .hint{opacity:.75;font-size:.9rem}
 
-    /* view toggles */
     [data-view]{display:none}
     [data-view].on{display:block}
 
-    /* モーダルの簡易スタイル */
     dialog{border:1px solid var(--border);border-radius:12px;padding:0;background:var(--card);color:var(--fg);max-width:520px;width:min(92vw,520px)}
     dialog::backdrop{background:rgba(0,0,0,.3)}
     .error{color:#b00020;font-size:.85rem}
     .invalid{border-color:#b00020 !important; outline:0}
+
+    .note .content{ white-space: pre-wrap; }
+    .note .content.single-line{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
+
+  <!-- HEIC → JPEG 変換ライブラリ（CDN。必要ならローカル同梱に切替可） -->
+  <script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
   <header>
@@ -79,27 +89,27 @@
         <option value="hc">高コントラスト</option>
       </select>
       <button class="btn" id="btnBack" style="display:none">← 一覧へ</button>
+      <button class="btn primary" id="goNew">＋ 新規登録</button>
     </div>
   </header>
 
   <div class="container">
-    <!-- 1) トップ（一覧） -->
+    <!-- 一覧 -->
     <section id="view-list" data-view class="on">
       <div class="row" style="justify-content:space-between;margin-bottom:.5rem">
         <div class="hint">登録したお友達の一覧です。クリックで編集へ。</div>
         <div class="toolbar">
           <input id="q" placeholder="名前・犬種で検索" />
-          <button class="btn primary" id="goNew">＋ 新規登録</button>
         </div>
       </div>
       <div id="list" class="grid cards"></div>
       <footer>
-        <img src="assets/images/CGW_LOGO.png" alt="CGW" />
+        <img src="assets/images/CGW_LOGO.png" alt="CGW" onerror="this.onerror=null;this.src='CGW_LOGO.png'">
         <small>Chloe's Grrrl Works</small>
       </footer>
     </section>
 
-    <!-- 2) 新規登録 -->
+    <!-- 新規登録 -->
     <section id="view-new" data-view>
       <div class="card">
         <div class="body grid" style="gap:.8rem">
@@ -109,11 +119,9 @@
           <div class="row"><label style="min-width:6rem">年齢</label><input id="new-age" placeholder="3"></div>
           <div class="row"><label style="min-width:6rem">初回入力日</label><input id="new-created" type="date"></div>
           <div class="row" style="align-items:flex-start">
-            <label style="min-width:6rem">写真</label>
-            <div class="grid" style="grid-template-columns: 1fr auto;gap:.5rem;align-items:center">
-              <input type="file" id="new-photo" accept="image/*">
-              <small class="hint">選ばない場合は後で追加できます</small>
-            </div>
+            <label class="btn" for="new-photo">写真を選ぶ</label>
+            <input type="file" id="new-photo" accept="image/*" style="display:none">
+            <small class="hint">iPhoneのHEICは自動でJPEG変換します</small>
           </div>
           <div class="row" style="justify-content:flex-end;gap:.5rem">
             <button class="btn" id="cancelNew">キャンセル</button>
@@ -123,7 +131,7 @@
       </div>
     </section>
 
-    <!-- 3) 個別編集 -->
+    <!-- 個別編集 -->
     <section id="view-edit" data-view>
       <div class="row" style="justify-content:space-between;margin:.25rem 0 .75rem">
         <div class="hint">画像上で付箋をドラッグ。タップで「×」表示、×で削除（確認ON/OFF可）。</div>
@@ -180,33 +188,37 @@
     </section>
   </div>
 
-  <!-- 新規登録: 初期付箋（必須）モーダル -->
+  <!-- 初回必須入力モーダル（キャンセル不可） -->
   <dialog id="initNotesModal">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">
-      最初の付箋（必須）
-    </div>
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">最初の付箋（必須）</div>
     <form method="dialog" id="initNotesForm" style="padding:14px 16px;display:grid;gap:.75rem">
       <label style="display:grid;gap:.35rem">
-        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須です</span></span>
-        <input id="nickInput" placeholder="例：クロちゃん" required />
+        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須</span></span>
+        <input id="nickInput" required />
       </label>
       <label style="display:grid;gap:.35rem">
-        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須です</span></span>
-        <input id="placeInput" placeholder="例：代々木公園" required />
+        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須</span></span>
+        <input id="placeInput" required />
       </label>
       <small class="hint">保存時に『出会い（日付）』の付箋も自動で追加されます。</small>
       <div style="padding-top:.25rem;display:flex;gap:.5rem;justify-content:flex-end">
-        <button type="button" class="btn" id="initNotesCancel">戻る</button>
         <button type="submit" class="btn primary" id="initNotesSave">保存</button>
       </div>
     </form>
   </dialog>
 
+  <footer>
+    <img src="assets/images/CGW_LOGO.png" alt="CGW" onerror="this.onerror=null;this.src='CGW_LOGO.png'">
+  </footer>
+
   <script>
-    // ========= 共通 =========
-    const $ = sel => document.querySelector(sel);
-    const $all = sel => Array.from(document.querySelectorAll(sel));
+    // ========= ユーティリティ＆テーマ =========
+    const $ = s => document.querySelector(s);
+    const routes = { list:'#/list', add:'#/new', edit:'#/edit' };
+    const views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
+    const btnBack = $('#btnBack');
     const themeSel = $('#themeSel');
+
     function setThemeMeta(t){ document.querySelector('meta[name="theme-color"]').setAttribute('content', t==='dark'?'#111215':'#ffffff'); }
     (function initTheme(){
       const t = localStorage.getItem('theme') || 'light';
@@ -218,53 +230,175 @@
         localStorage.setItem('theme', v); setThemeMeta(v);
       });
     })();
-
-    const routes = { list:'#/list', add:'#/new', edit:'#/edit' }; // #/edit/:id
-    const views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
-    const btnBack = $('#btnBack');
     function show(view){
       Object.values(views).forEach(v=>v.classList.remove('on'));
       views[view].classList.add('on');
       btnBack.style.display = (view==='list') ? 'none' : 'inline-block';
     }
 
-    // ========= モデル =========
+    // ========= データ =========
+    function uuid(){ return 'f-' + Math.random().toString(36).slice(2,10); }
+    function nid(){ return 'n-' + Math.random().toString(36).slice(2,10); }
     function loadFriends(){ try { return JSON.parse(localStorage.getItem('friends')||'[]'); } catch(e){ return []; } }
     function saveFriends(arr){ localStorage.setItem('friends', JSON.stringify(arr)); }
-    function uuid(){ return 'f-' + Math.random().toString(36).slice(2,10); }
+    function getFriend(id){ return loadFriends().find(f=>f.id===id); }
+    function setFriend(obj){ const fs=loadFriends(); const i=fs.findIndex(x=>x.id===obj.id); if(i>=0){ fs[i]=obj; saveFriends(fs);} }
 
-    // 初回デモ（空なら1件）
-    (function seed(){
-      const fs = loadFriends();
-      if(fs.length===0){
-        const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
-        const demo = {
-          id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
-          created: `${y}-${m}-${d}`, photoDataURL:'', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
-          notes: [
-            {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
-            {text:'あだ名：クロちゃん', x:220, y:60, colorId:3},
-            {text:'出会った場所：代々木公園', x:24, y:120, colorId:2}
-          ]
-        };
-        saveFriends([demo]);
+    // ========= デフォ付箋（呼び名＋出会った場所 1枚。両方空なら作らない） =========
+    function buildProfileNote(nick, place){
+      const parts=[];
+      if (nick && nick.trim())  parts.push(`呼び名：${nick.trim()}`);
+      if (place && place.trim()) parts.push(`出会った場所：${place.trim()}`);
+      if (!parts.length) return null;
+      return { id: nid(), text: parts.join('\n'), x:24, y:120, colorId:5 };
+    }
+
+    // ========= テキスト整形（12=1行、13〜24=2行、25〜切捨て／全角基準） =========
+    function splitToTwoLines(text, firstLimit=12, maxTotal=24){
+      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:false }; // URL優先
+      const raw=(text||'').replace(/\r?\n/g,'');
+      let l1='', l2='', w=0;
+      for (const ch of raw){
+        const add=(ch.charCodeAt(0)<=0xFF)?0.5:1;  // 半角0.5 / 全角1
+        if (w+add<=firstLimit){ l1+=ch; w+=add; }
+        else { l2+=ch; w+=add; }
+        if (w>=maxTotal) break;                    // 25〜は切り捨て
       }
-    })();
+      return l2 ? { html:l1+'\n'+l2, singleLine:false }
+                : { html:l1,          singleLine:true  };
+    }
+    function escapeHTML(s){
+      return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function linkifyAndEscape(t){
+      const esc = escapeHTML(t||'');
+      return esc.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`);
+    }
 
-    // ========= トップ（一覧） =========
+    // ========= 画像関連：HEIC自動変換 + 自動スケール圧縮 =========
+    function isIOS() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+    const PIXELS_CAP = isIOS() ? 3_000_000 : 6_000_000; // iOSは安全側
+
+    function isHeicLike(file){
+      const name=(file?.name||'').toLowerCase(), type=(file?.type||'').toLowerCase();
+      return name.endsWith('.heic') || type.includes('heic') || type.includes('heif');
+    }
+    async function toJpegIfHeic(file){
+      if (!isHeicLike(file)) return file;
+      if (typeof heic2any !== 'function') return file; // ライブラリ未読込時は素通し
+      try{
+        const out = await heic2any({ blob:file, toType:'image/jpeg', quality:0.92 });
+        return Array.isArray(out) ? out[0] : out;
+      }catch(e){
+        console.warn('HEIC変換に失敗:', e);
+        alert('HEIC画像の変換に失敗しました。JPEG/PNGをお試しください。');
+        return file;
+      }
+    }
+    async function fileOrBlobToCompressedDataURL(fileOrBlob, maxDimHint=2048, baseQuality=0.85){
+      let bitmap=null;
+      if (self.createImageBitmap){
+        try{ bitmap=await createImageBitmap(fileOrBlob); }catch(_){}
+      }
+      let w,h, imgEl=null;
+      if (bitmap){
+        w=bitmap.width; h=bitmap.height;
+      } else {
+        const url=URL.createObjectURL(fileOrBlob);
+        imgEl = await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+        URL.revokeObjectURL(url);
+        w=imgEl.naturalWidth; h=imgEl.naturalHeight;
+      }
+      const maxSide = Math.max(w,h);
+      const scaleBySide = Math.min(1, maxDimHint / maxSide);
+      const scaleByPixels = Math.min(1, Math.sqrt(PIXELS_CAP / (w*h)));
+      const scale = Math.min(scaleBySide, scaleByPixels);
+      const outW = Math.max(1, Math.round(w * scale));
+      const outH = Math.max(1, Math.round(h * scale));
+
+      const mp = (w*h)/1_000_000;
+      const quality = mp >= 12 ? Math.min(0.78, baseQuality) : baseQuality; // 12MP超→少し絞る
+
+      const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+      canvas.width = outW; canvas.height = outH;
+      if (bitmap) ctx.drawImage(bitmap, 0, 0, outW, outH);
+      else        ctx.drawImage(imgEl, 0, 0, outW, outH);
+
+      return canvas.toDataURL('image/jpeg', quality);
+    }
+    function previewFromBlob(blob, imgEl){
+      const url = URL.createObjectURL(blob);
+      imgEl.onload = ()=> URL.revokeObjectURL(url);
+      imgEl.onerror = ()=> { URL.revokeObjectURL(url); alert('画像プレビューに失敗しました'); };
+      imgEl.src = url;
+    }
+
+    // ========= 初回必須オンボーディング =========
+    const initNotesModal = $('#initNotesModal');
+    const initNotesForm  = $('#initNotesForm');
+    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
+    const errNick = $('#errNick'), errPlace = $('#errPlace');
+
+    initNotesModal.addEventListener('cancel', e => e.preventDefault()); // キャンセル不可
+    initNotesModal.addEventListener('close', e => {
+      if (!localStorage.getItem('onboarded')) initNotesModal.showModal();
+    });
+    function showOnboardingIfNeeded(){
+      const fs = loadFriends();
+      if (!localStorage.getItem('onboarded') && fs.length===0) {
+        errNick.style.display='none'; errPlace.style.display='none';
+        nickInput.value=''; placeInput.value='';
+        initNotesModal.showModal();
+        setTimeout(()=>nickInput.focus(),0);
+      }
+    }
+    initNotesForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const nick = nickInput.value.trim();
+      const place = placeInput.value.trim();
+      errNick.style.display = nick? 'none':'inline';
+      errPlace.style.display = place? 'none':'inline';
+      if(!nick || !place) return;
+
+      const t=new Date(); const y=t.getFullYear(); const m=String(t.getMonth()+1).padStart(2,'0'); const d=String(t.getDate()).padStart(2,'0');
+      const profile = buildProfileNote(nick, place);
+      const f = {
+        id: uuid(),
+        name: '', breed:'', color:'', age:'',
+        created: `${y}-${m}-${d}`,
+        photoDataURL: 'assets/images/CGW_LOGO.png',
+        goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+        notes: [
+          { id: nid(), text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1 },
+          ...(profile ? [profile] : [])
+        ]
+      };
+      const fs = loadFriends(); fs.push(f); saveFriends(fs);
+      localStorage.setItem('onboarded','1');
+      initNotesModal.close();
+      location.hash = `#/edit/${f.id}`;
+    });
+
+    // ========= 一覧 =========
     const listEl = $('#list'); const qEl = $('#q');
     function renderList(){
       const q = (qEl.value||'').trim().toLowerCase();
-      const fs = loadFriends();
+      const data = loadFriends();
       listEl.innerHTML = '';
-      fs.filter(f=>{
+      data.filter(f=>{
         if(!q) return true;
         return [f.name,f.breed].some(v=>String(v||'').toLowerCase().includes(q));
       }).forEach(f=>{
         const card = document.createElement('div'); card.className='card';
         const ph = document.createElement('div'); ph.className='ph';
-        if(f.photoDataURL){ const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img); }
-        else { ph.textContent='No Photo'; }
+        if(f.photoDataURL){
+          const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover';
+          img.onerror=()=>{ img.src='CGW_LOGO.png'; };
+          ph.innerHTML=''; ph.appendChild(img);
+        } else { ph.textContent='No Photo'; }
         const body = document.createElement('div'); body.className='body';
         body.innerHTML = `<div style="font-weight:700">${f.name||'(無名)'}</div>
           <div class="hint">${f.breed||'-'}／${f.color||'-'}／${f.age||'-'}歳</div>
@@ -277,64 +411,35 @@
         b.addEventListener('click', ()=> location.hash = `${routes.edit}/${b.dataset.id}`);
       });
     }
-    $('#goNew').addEventListener('click', ()=> location.hash = routes.add);
-    qEl.addEventListener('input', renderList);
-    btnBack.addEventListener('click', ()=> history.pushState({},'', routes.list));
 
     // ========= 新規登録 =========
-    const newName = $('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created'), newPhoto=$('#new-photo');
-    newCreated.valueAsDate = new Date();
-    $('#cancelNew').addEventListener('click', ()=> history.pushState({},'', routes.list));
+    const newName=$('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created');
+    const newPhotoInput = $('#new-photo'); newCreated.valueAsDate = new Date();
+    $('#cancelNew').addEventListener('click', ()=> location.hash = routes.list);
     let newPhotoDataURL = '';
-    newPhoto.addEventListener('change', async (e)=>{
-      const f = e.target.files?.[0]; if(!f) return;
-      const buf = await f.arrayBuffer(); let bin=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
-      newPhotoDataURL = `data:${f.type};base64,` + btoa(bin);
+
+    newPhotoInput.addEventListener('change', async (e)=>{
+      const original = e.target.files?.[0]; if(!original) return;
+      try{
+        const converted = await toJpegIfHeic(original);              // HEIC→JPEG
+        previewFromBlob(converted, $('#photo'));                      // プレビュー（編集ビューのimgに反映）
+        newPhotoDataURL = await fileOrBlobToCompressedDataURL(       // 自動スケール＆圧縮
+          converted, 2048, 0.85
+        );
+      }catch(err){
+        alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明'));
+      }finally{
+        e.target.value='';
+      }
     });
 
-    // 初期付箋（必須）モーダル
-    const initNotesModal = $('#initNotesModal');
-    const initNotesForm  = $('#initNotesForm');
-    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
-    const errNick = $('#errNick'), errPlace = $('#errPlace');
-    const initNotesCancel = $('#initNotesCancel');
-
-    function setError(el, errEl, on){
-      if(on){ el.classList.add('invalid'); errEl.style.display='inline'; }
-      else  { el.classList.remove('invalid'); errEl.style.display='none'; }
-    }
-    function validateInitNotes(){
-      const n = nickInput.value.trim();
-      const p = placeInput.value.trim();
-      setError(nickInput, errNick, n==='');
-      setError(placeInput, errPlace, p==='');
-      return n!=='' && p!=='';
-    }
-
-    document.getElementById('saveNew').addEventListener('click', ()=>{
-      // 開く前に初期化
-      nickInput.value=''; placeInput.value='';
-      setError(nickInput, errNick, false); setError(placeInput, errPlace, false);
-      initNotesModal.showModal();
-      setTimeout(()=> nickInput.focus(), 0);
-    });
-
-    initNotesForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      if(!validateInitNotes()) return; // 必須
-      finalizeFriendCreation({ nickname: nickInput.value.trim(), place: placeInput.value.trim() });
-    });
-    initNotesCancel.addEventListener('click', ()=> initNotesModal.close());
-    nickInput.addEventListener('input', validateInitNotes);
-    placeInput.addEventListener('input', validateInitNotes);
-
-    function finalizeFriendCreation({ nickname, place }) {
+    $('#saveNew').addEventListener('click', ()=>{
       const createdVal = newCreated.value || new Date().toISOString().slice(0,10);
       const baseX = 24, baseY = 24;
       const notesInit = [
-        { text: `出会い：${createdVal}`, x: baseX, y: baseY, colorId: 1 },
-        { text: `あだ名：${nickname}`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
-        { text: `出会った場所：${place}`, x: baseX, y: baseY + 96, colorId: 2 }
+        { id:nid(), text: `出会い：${createdVal}`, x: baseX, y: baseY, colorId: 1 },
+        { id:nid(), text: `あだ名：—`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
+        { id:nid(), text: `出会った場所：—`, x: baseX, y: baseY + 96, colorId: 2 }
       ];
       const f = {
         id: uuid(),
@@ -343,20 +448,17 @@
         color: newColor.value.trim(),
         age: newAge.value.trim(),
         created: createdVal,
-        photoDataURL: (typeof newPhotoDataURL === 'string' ? newPhotoDataURL : '') || '',
+        photoDataURL: newPhotoDataURL || 'assets/images/CGW_LOGO.png',
         goodbye: '—',
         goodbyeActive: false,
         deleteConfirm: true,
         notes: notesInit
       };
       const fs = loadFriends(); fs.push(f); saveFriends(fs);
-      initNotesModal.close();
       location.hash = `${routes.edit}/${f.id}`;
-    }
+    });
 
     // ========= 個別編集 =========
-    const stage = $('#stage'), cardEl = $('#card'), photo = $('#photo');
-    const nameEl=$('#name'), breedEl=$('#breed'), colorEl=$('#color'), ageEl=$('#age'), createdEl=$('#created');
     const noteModal = $('#noteModal'), noteText = $('#noteText');
     const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
     const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
@@ -364,41 +466,25 @@
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
-    function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
 
-    let currentId = null;
-    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
-    function saveFriend(obj){
-      const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id);
-      if(i>=0){ fs[i]=obj; saveFriends(fs); }
-    }
+    function createNote(nObj, f){
+      const {id, text} = nObj;
+      const note=document.createElement('div'); note.className='note'; note.dataset.color=String(nObj.colorId||randomColorId()); note.dataset.id=id;
+      note.style.left=(nObj.x||40)+'px'; note.style.top=(nObj.y||40)+'px';
 
-    function bindEdit(f){
-      currentId = f.id;
-      // 写真
-      photo.src = f.photoDataURL || '';
-      // 固定項目
-      nameEl.value=f.name||''; breedEl.value=f.breed||''; colorEl.value=f.color||''; ageEl.value=f.age||''; createdEl.value=f.created||'';
-      // お別れ
-      goodbyeTextEl.textContent = f.goodbye || '—'; if(f.goodbyeActive) cardEl.classList.add('goodbye'); else cardEl.classList.remove('goodbye');
-      // 削除確認
-      chkConfirm.checked = !!f.deleteConfirm;
-      // 付箋再描画
-      stage.querySelectorAll('.note').forEach(n=>n.remove());
-      (f.notes||[]).forEach(n=> createNote(n, f));
-    }
-
-    function createNote({text,x=40,y=40,colorId=randomColorId()}, f){
-      const note=document.createElement('div'); note.className='note'; note.dataset.color=String(colorId); note.dataset.text=text;
-      note.style.left=x+'px'; note.style.top=y+'px';
       const close=document.createElement('button'); close.type='button'; close.className='close'; close.textContent='×'; close.title='削除';
       close.addEventListener('click', e=>{
         e.stopPropagation();
         if(chkConfirm.checked && !confirm('この付箋を削除しますか？')) return;
-        f.notes = (f.notes||[]).filter(n=> !(n.text===text && n.x===x && n.y===y && n.colorId===colorId));
-        saveFriend(f); note.remove();
+        f.notes = (f.notes||[]).filter(x=> x.id!==id);
+        setFriend(f); note.remove();
       });
-      const content=document.createElement('div'); content.className='content'; content.innerHTML=linkify(text);
+
+      const content=document.createElement('div'); content.className='content';
+      const fmt = splitToTwoLines(text, 12, 24);
+      if (fmt.singleLine) content.classList.add('single-line');
+      content.innerHTML = linkifyAndEscape(fmt.html).replace(/\n/g,'<br>');
+
       note.appendChild(close); note.appendChild(content);
 
       note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
@@ -411,99 +497,128 @@
       });
       note.addEventListener('pointermove', e=>{
         if(!dragging) return;
-        const s=stage.getBoundingClientRect(), n=note.getBoundingClientRect();
+        const s=$('#stage').getBoundingClientRect(), n=note.getBoundingClientRect();
         const L=clamp(e.clientX - s.left - offX, 0, Math.max(0, s.width - n.width));
         const T=clamp(e.clientY - s.top  - offY, 0, Math.max(0, s.height - n.height));
         note.style.left=L+'px'; note.style.top=T+'px';
       });
       function stopDrag(){
         if(!dragging) return; dragging=false; note.classList.remove('dragging');
-        const idx = (f.notes||[]).findIndex(n=> n.text===text && n.x===x && n.y===y && n.colorId===colorId);
-        if(idx>=0){ f.notes[idx].x=parseFloat(note.style.left)||0; f.notes[idx].y=parseFloat(note.style.top)||0; saveFriend(f); }
+        const idx = (f.notes||[]).findIndex(x=> x.id===id);
+        if(idx>=0){ f.notes[idx].x=parseFloat(note.style.left)||0; f.notes[idx].y=parseFloat(note.style.top)||0; setFriend(f); }
       }
       note.addEventListener('pointerup', stopDrag); note.addEventListener('pointercancel', stopDrag);
 
-      stage.appendChild(note);
-      if(/お別れ/.test(text)){ setTimeout(()=> openGoodbyeModal(f), 0); }
+      $('#stage').appendChild(note);
+
+      if(/お別れ/.test(text)){ setTimeout(()=> { $('#goodbyeInput').value=''; $('#goodbyeModal').showModal(); }, 0); }
       return note;
     }
 
-    function openNoteModal(pref=''){ noteText.value=pref; noteModal.showModal(); setTimeout(()=>noteText.focus(),0); }
-    $('#cancelModal').addEventListener('click', ()=> noteModal.close());
+    $('#cancelModal').addEventListener('click', ()=> $('#noteModal').close());
     $('#saveNote').addEventListener('click', ()=>{
-      const t = noteText.value.trim(); if(!t) return;
-      const f = loadFriend(currentId); if(!f) return;
-      const n = {text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
-      f.notes = f.notes||[]; f.notes.push(n); saveFriend(f); createNote(n, f); noteModal.close();
+      const t = $('#noteText').value.trim(); if(!t) return;
+      const f = getFriend(currentId); if(!f) return;
+      const n = {id:nid(), text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
+      f.notes = f.notes||[]; f.notes.push(n); setFriend(f); createNote(n, f); $('#noteModal').close();
+    });
+    $('#btnAddNote').addEventListener('click', ()=> { $('#noteText').value=''; $('#noteModal').showModal(); setTimeout(()=>$('#noteText').focus(),0); });
+    $('#btnMetToday').addEventListener('click', ()=>{
+      const t=new Date(); const y=t.getFullYear(); const m=String(t.getMonth()+1).padStart(2,'0'); const d=String(t.getDate()).padStart(2,'0');
+      const text=`今日会った：${y}-${m}-${d}`; const f = getFriend(currentId); if(!f) return;
+      const n={id:nid(), text, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); setFriend(f); createNote(n, f);
     });
 
-    btnAddNote.addEventListener('click', ()=> openNoteModal());
-    btnMetToday.addEventListener('click', ()=>{
-      const today=new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
-      const t=`今日会った：${y}-${m}-${d}`; const f = loadFriend(currentId); if(!f) return;
-      const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); saveFriend(f); createNote(n, f);
-    });
-
-    [nameEl,breedEl,colorEl,ageEl,createdEl].forEach(inp=>{
+    // 入力欄と保存
+    [$('#name'),$('#breed'),$('#color'),$('#age'),$('#created')].forEach(inp=>{
       inp.addEventListener('change', ()=>{
-        const f = loadFriend(currentId); if(!f) return;
-        f.name=nameEl.value; f.breed=breedEl.value; f.color=colorEl.value; f.age=ageEl.value; f.created=createdEl.value; saveFriend(f);
+        const f = getFriend(currentId); if(!f) return;
+        f.name=$('#name').value; f.breed=$('#breed').value; f.color=$('#color').value; f.age=$('#age').value; f.created=$('#created').value; setFriend(f);
       });
     });
 
-    editPhoto.addEventListener('change', async (e)=>{
-      const file = e.target.files?.[0]; if(!file) return;
-      const buf = await file.arrayBuffer(); let bin=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
-      const dataURL = `data:${file.type};base64,` + btoa(bin);
-      const f = loadFriend(currentId); if(!f) return; f.photoDataURL=dataURL; saveFriend(f); photo.src=dataURL;
+    // 画像差し替え（編集）
+    document.getElementById('edit-photo').addEventListener('change', async (e)=>{
+      const original = e.target.files?.[0]; if(!original) return;
+      try{
+        const converted = await toJpegIfHeic(original);                 // HEIC→JPEG
+        previewFromBlob(converted, document.getElementById('photo'));   // プレビュー
+        const dataURL = await fileOrBlobToCompressedDataURL(converted, 2048, 0.85); // 自動スケール＆圧縮
+        const f = getFriend(currentId); if(!f) return; f.photoDataURL=dataURL; setFriend(f);
+      }catch(err){
+        alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明'));
+      }finally{
+        e.target.value='';
+      }
     });
 
-    function openGoodbyeModal(f){ goodbyeInput.value=''; goodbyeModal.showModal(); setTimeout(()=>goodbyeInput.focus(),0); }
-    $('#goodbyeSave').addEventListener('click', ()=>{
-      const f = loadFriend(currentId); if(!f) return;
-      const t = goodbyeInput.value.trim(); if(t){ f.goodbye=t; f.goodbyeActive=true; saveFriend(f); goodbyeTextEl.textContent=t; cardEl.classList.add('goodbye'); }
-      goodbyeModal.close();
+    // お別れ保存
+    document.getElementById('goodbyeSave').addEventListener('click', ()=>{
+      const f = getFriend(currentId); if(!f) return;
+      const t = document.getElementById('goodbyeInput').value.trim();
+      if(t){ f.goodbye=t; f.goodbyeActive=true; setFriend(f); document.getElementById('goodbyeText').textContent=t; document.getElementById('card').classList.add('goodbye'); }
+      document.getElementById('goodbyeModal').close();
     });
-    $('#goodbyeCancel').addEventListener('click', ()=> goodbyeModal.close());
+    document.getElementById('goodbyeCancel').addEventListener('click', ()=> document.getElementById('goodbyeModal').close());
 
-    chkConfirm.addEventListener('change', ()=>{
-      const f = loadFriend(currentId); if(!f) return; f.deleteConfirm = chkConfirm.checked; saveFriend(f);
-    });
-
-    btnExport.addEventListener('click', ()=>{
-      const f = loadFriend(currentId); if(!f) return;
+    // バックアップ
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      const f = getFriend(currentId); if(!f) return;
       const blob = new Blob([JSON.stringify(f,null,2)], {type:'application/json'});
       const a = document.createElement('a'); const ts = new Date().toISOString().replace(/[:.]/g,'-');
       a.href = URL.createObjectURL(blob); a.download = `friend-${f.name||f.id}-${ts}.json`; a.click(); URL.revokeObjectURL(a.href);
     });
-    btnImport.addEventListener('change', async (e)=>{
+    document.getElementById('btnImport').addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if(!file) return;
       try{
         const text = await file.text(); const json = JSON.parse(text);
         if(!json.id || json.id!==currentId){ alert('別のお友達データの可能性があります。'); return; }
-        saveFriend(json); bindEdit(json); alert('復元しました');
+        setFriend(json); bindEdit(json); alert('復元しました');
       }catch(err){ alert('復元に失敗：'+err.message); }
       e.target.value='';
     });
 
     // ========= ルーティング =========
+    const qEl = $('#q');
+    let currentId = null;
+
+    function bindEdit(f){
+      currentId = f.id;
+      document.getElementById('photo').src = f.photoDataURL || '';
+      document.getElementById('name').value=f.name||'';
+      document.getElementById('breed').value=f.breed||'';
+      document.getElementById('color').value=f.color||'';
+      document.getElementById('age').value=f.age||'';
+      document.getElementById('created').value=f.created||'';
+      document.getElementById('goodbyeText').textContent = f.goodbye || '—';
+      if(f.goodbyeActive) document.getElementById('card').classList.add('goodbye'); else document.getElementById('card').classList.remove('goodbye');
+      document.getElementById('chkConfirm').checked = !!f.deleteConfirm;
+      document.getElementById('stage').querySelectorAll('.note').forEach(n=>n.remove());
+      (f.notes||[]).forEach(n=> createNote(n, f));
+    }
+
     function onRoute(){
       const h = location.hash || routes.list;
       if(h.startsWith('#/edit/')){
-        const id = h.split('/')[2]; const f = loadFriend(id);
+        const id = h.split('/')[2]; const f = getFriend(id);
         if(!f){ alert('データが見つかりません'); location.hash = routes.list; return; }
         show('edit'); bindEdit(f);
       } else if(h===routes.add){
         show('add');
       } else {
-        show('list'); renderList();
+        show('list'); renderList(); showOnboardingIfNeeded();
       }
     }
     window.addEventListener('hashchange', onRoute);
     onRoute();
 
-    // ========= SW登録 =========
-    if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+    // 一覧UIイベント
+    document.getElementById('goNew').addEventListener('click', ()=> location.hash = routes.add);
+    btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
+    qEl.addEventListener('input', renderList);
+
+    // Service Worker を使う場合は別途
+    // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   </script>
 </body>
 </html>
