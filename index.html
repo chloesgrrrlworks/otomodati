@@ -43,9 +43,17 @@
     .stage{position:relative;width:100%;aspect-ratio:4/3;background:#e0e0e0;overflow:hidden;border-radius:12px}
     [data-theme="dark"] .stage{background:#2a2d33}
     .stage img{width:100%;height:100%;object-fit:cover;display:block}
-    .note{position:absolute;min-width:120px;max-width:240px;min-height:64px;padding:10px 12px 24px 12px;border-radius:8px;
-      box-shadow:0 4px 10px rgba(0,0,0,.18);font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;cursor:grab;user-select:none;touch-action:none;border:1px solid rgba(0,0,0,.06);
-      word-break: normal; overflow-wrap: anywhere;}
+
+    .note{
+      position:absolute;min-width:120px;max-width:240px;min-height:64px;
+      padding:10px 12px 24px 12px;border-radius:8px;border:1px solid rgba(0,0,0,.06);
+      box-shadow:0 4px 10px rgba(0,0,0,.18);
+      font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;
+      cursor:grab;user-select:none;touch-action:none;
+      /* 折返しは content 側で制御する。ここではさせない */
+      word-break: normal;
+      overflow-wrap: normal;
+    }
     .note.dragging{opacity:.85;cursor:grabbing}
     .note .close{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--danger);color:var(--danger);font-weight:700;line-height:19px;text-align:center;display:none;cursor:pointer}
     .note.show-close .close{display:inline-block}
@@ -64,8 +72,8 @@
     .error{color:#b00020;font-size:.85rem}
     .invalid{border-color:#b00020 !important; outline:0}
 
-    .note .content{ white-space: pre-wrap; }
-    .note .content.single-line{ white-space: nowrap; }
+    .note .content{ white-space: pre-wrap; word-break: normal; overflow-wrap: normal; }
+    .note .content.single-line{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
 </head>
 <body>
@@ -178,12 +186,31 @@
     </section>
   </div>
 
+  <!-- 初回必須入力モーダル（キャンセル不可） -->
+  <dialog id="initNotesModal">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">最初の付箋（必須）</div>
+    <form method="dialog" id="initNotesForm" style="padding:14px 16px;display:grid;gap:.75rem">
+      <label style="display:grid;gap:.35rem">
+        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須</span></span>
+        <input id="nickInput" required />
+      </label>
+      <label style="display:grid;gap:.35rem">
+        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須</span></span>
+        <input id="placeInput" required />
+      </label>
+      <small class="hint">保存時に『出会い（日付）』の付箋も自動で追加されます。</small>
+      <div style="padding-top:.25rem;display:flex;gap:.5rem;justify-content:flex-end">
+        <button type="submit" class="btn primary" id="initNotesSave">保存</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer>
     <img src="assets/images/CGW_LOGO.png" alt="CGW">
   </footer>
 
   <script>
-    // ========= ユーティリティ =========
+    // ========= ユーティリティ＆テーマ =========
     const $ = s => document.querySelector(s);
     const $all = s => Array.from(document.querySelectorAll(s));
     const routes = { list:'#/list', add:'#/new', edit:'#/edit' };
@@ -212,7 +239,7 @@
     function loadFriends(){ try { return JSON.parse(localStorage.getItem('friends')||'[]'); } catch(e){ return []; } }
     function saveFriends(arr){ localStorage.setItem('friends', JSON.stringify(arr)); }
 
-    // 初回デモ（空なら1件）
+    // ========= デモデータ（空なら1件） =========
     (function seed(){
       const fs = loadFriends();
       if(fs.length===0){
@@ -230,6 +257,53 @@
         saveFriends([demo]);
       }
     })();
+
+    // ========= 起動時オンボーディング（必須） =========
+    const initNotesModal = $('#initNotesModal');
+    const initNotesForm  = $('#initNotesForm');
+    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
+    const errNick = $('#errNick'), errPlace = $('#errPlace');
+
+    initNotesModal.addEventListener('cancel', e => e.preventDefault());
+    initNotesModal.addEventListener('close', e => {
+      if (!localStorage.getItem('onboarded')) initNotesModal.showModal();
+    });
+    function showOnboardingIfNeeded(){
+      const fs = loadFriends();
+      const hasReal = fs.some(f => !f.demo);
+      if (!localStorage.getItem('onboarded') && !hasReal) {
+        errNick.style.display='none'; errPlace.style.display='none';
+        nickInput.value=''; placeInput.value='';
+        initNotesModal.showModal();
+        setTimeout(()=>nickInput.focus(),0);
+      }
+    }
+    initNotesForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const nick = nickInput.value.trim();
+      const place = placeInput.value.trim();
+      errNick.style.display = nick? 'none':'inline';
+      errPlace.style.display = place? 'none':'inline';
+      if(!nick || !place) return;
+
+      const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
+      const f = {
+        id: uuid(),
+        name: '', breed:'', color:'', age:'',
+        created: `${y}-${m}-${d}`,
+        photoDataURL: '', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+        notes: [
+          {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
+          {text:`あだ名：${nick}`,        x:220, y:60, colorId:3},
+          {text:`出会った場所：${place}`, x:24,  y:120, colorId:2}
+        ]
+      };
+      const fs = loadFriends().filter(x=>!x.demo);
+      fs.push(f); saveFriends(fs);
+      localStorage.setItem('onboarded','1');
+      initNotesModal.close();
+      location.hash = `#/edit/${f.id}`;
+    });
 
     // ========= 一覧 =========
     const listEl = $('#list'); const qEl = $('#q');
@@ -263,24 +337,51 @@
     $('#goNew').addEventListener('click', ()=> location.hash = routes.add);
     btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
 
+    // ========= テキスト整形：12=1行、13〜24=2行、25〜切り捨て（全角基準） =========
+    function visualLen(str){ let w=0; for (const ch of (str||'')) w += (ch.charCodeAt(0)<=0xFF)?0.5:1; return w; }
+    function splitToTwoLines(text, firstLimit=12, maxTotal=24){
+      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:false };
+      const raw=(text||'').replace(/\r?\n/g,'');
+      let line1='', line2='', w=0;
+      for (const ch of raw){
+        const add=(ch.charCodeAt(0)<=0xFF)?0.5:1;
+        if (w+add<=firstLimit){ line1+=ch; w+=add; }
+        else { line2+=ch; w+=add; }
+        if (w>=maxTotal) break;
+      }
+      if (!line2) return { html: line1, singleLine: true };
+      return { html: line1+'\n'+line2, singleLine:false };
+    }
+    function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
+
     // ========= 画像：ObjectURL プレビュー → JPEG圧縮保存 =========
     function isHEIC(file){
-      const name = (file?.name || '').toLowerCase();
-      const type = (file?.type || '').toLowerCase();
+      const name=(file?.name||'').toLowerCase(), type=(file?.type||'').toLowerCase();
       return type.includes('heic') || name.endsWith('.heic') || type.includes('heif');
     }
-    async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85){
-      const bmp = (self.createImageBitmap) ? await createImageBitmap(file).catch(()=>null) : null;
-      let w,h,canvas,ctx;
-      if (bmp) { w=bmp.width; h=bmp.height; }
-      else {
-        const blobURL = URL.createObjectURL(file);
-        const img = await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=blobURL; });
-        URL.revokeObjectURL(blobURL); w=img.naturalWidth; h=img.naturalHeight;
+    async function fileToCompressedDataURL(file, maxDim=1600, quality=0.85){
+      // まず createImageBitmap を試す
+      let imgBitmap = null;
+      if (self.createImageBitmap) {
+        try{ imgBitmap = await createImageBitmap(file); }catch(_){}
       }
-      const scale = Math.min(1, maxDim/Math.max(w,h)); const nw=Math.max(1,Math.round(w*scale)), nh=Math.max(1,Math.round(h*scale));
-      canvas=document.createElement('canvas'); canvas.width=nw; canvas.height=nh; ctx=canvas.getContext('2d');
-      if (bmp) ctx.drawImage(bmp,0,0,nw,nh); else { /* 直前にimgで読み済み */ ctx.drawImage(await createImageBitmap(file),0,0,nw,nh); }
+      let w,h,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+      if (imgBitmap){
+        w=imgBitmap.width; h=imgBitmap.height;
+        const scale = Math.min(1, maxDim/Math.max(w,h));
+        canvas.width = Math.max(1,Math.round(w*scale));
+        canvas.height= Math.max(1,Math.round(h*scale));
+        ctx.drawImage(imgBitmap,0,0,canvas.width,canvas.height);
+      }else{
+        const url=URL.createObjectURL(file);
+        const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+        URL.revokeObjectURL(url);
+        w=img.naturalWidth; h=img.naturalHeight;
+        const scale = Math.min(1, maxDim/Math.max(w,h));
+        canvas.width = Math.max(1,Math.round(w*scale));
+        canvas.height= Math.max(1,Math.round(h*scale));
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      }
       return canvas.toDataURL('image/jpeg', quality);
     }
     function previewToImageElement(file, imgEl){
@@ -300,13 +401,10 @@
       const f = e.target.files?.[0]; if(!f) return;
       if (isHEIC(f)) alert('HEICはブラウザで不安定です。JPEG/PNGに変換してから選んでください。');
       try{
-        // 一時プレビューは編集画面のimgに表示
-        previewToImageElement(f, $('#photo'));
-        // 保存用は圧縮してDataURLへ
+        previewToImageElement(f, $('#photo')); // 一旦プレビューを編集ビューのimgへ
         newPhotoDataURL = await fileToCompressedDataURL(f, 1600, 0.85);
-      }catch(err){
-        alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明'));
-      }finally{ e.target.value=''; }
+      }catch(err){ alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明')); }
+      finally{ e.target.value=''; }
     });
 
     $('#saveNew').addEventListener('click', ()=>{
@@ -342,34 +440,14 @@
     const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
     const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
     const btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
+
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
-    function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
-    function hasURL(t){ return /(https?:\/\/[^\s]+)/.test(t); }
-    function formatNoteTextForDisplay(t){
-      if (hasURL(t)) return (t||'');
-      const raw = (t||'').replace(/\r?\n/g, '');
-      const cut = raw.slice(0, 24);
-      if (cut.length <= 12) return cut;
-      return cut.slice(0,12) + '\n' + cut.slice(12);
-    }
-    let currentId = null;
-    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
-    function saveFriend(obj){ const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id); if(i>=0){ fs[i]=obj; saveFriends(fs); } }
-
-    function bindEdit(f){
-      currentId = f.id;
-      photo.src = f.photoDataURL || '';
-      nameEl.value=f.name||''; breedEl.value=f.breed||''; colorEl.value=f.color||''; ageEl.value=f.age||''; createdEl.value=f.created||'';
-      goodbyeTextEl.textContent = f.goodbye || '—'; if(f.goodbyeActive) cardEl.classList.add('goodbye'); else cardEl.classList.remove('goodbye');
-      chkConfirm.checked = !!f.deleteConfirm;
-      stage.querySelectorAll('.note').forEach(n=>n.remove());
-      (f.notes||[]).forEach(n=> createNote(n, f));
-    }
 
     function createNote({text,x=40,y=40,colorId=randomColorId()}, f){
       const note=document.createElement('div'); note.className='note'; note.dataset.color=String(colorId);
       note.style.left=x+'px'; note.style.top=y+'px';
+
       const close=document.createElement('button'); close.type='button'; close.className='close'; close.textContent='×'; close.title='削除';
       close.addEventListener('click', e=>{
         e.stopPropagation();
@@ -377,10 +455,12 @@
         f.notes = (f.notes||[]).filter(n=> !(n.text===text && n.x===x && n.y===y && n.colorId===colorId));
         saveFriend(f); note.remove();
       });
+
       const content=document.createElement('div'); content.className='content';
-      const displayText = formatNoteTextForDisplay(text);
-      if (!hasURL(text) && displayText.length <= 12) { content.classList.add('single-line'); }
-      content.innerHTML = linkify(displayText).replace(/\n/g,'<br>');
+      const fmt = splitToTwoLines(text, 12, 24);
+      if (fmt.singleLine) content.classList.add('single-line');
+      content.innerHTML = linkify(fmt.html).replace(/\n/g,'<br>');
+
       note.appendChild(close); note.appendChild(content);
 
       note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
@@ -410,18 +490,21 @@
       return note;
     }
 
+    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
+    function saveFriend(obj){ const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id); if(i>=0){ fs[i]=obj; saveFriends(fs); } }
+
     $('#cancelModal').addEventListener('click', ()=> $('#noteModal').close());
     $('#saveNote').addEventListener('click', ()=>{
       const t = $('#noteText').value.trim(); if(!t) return;
       const f = loadFriend(currentId); if(!f) return;
-      const n = {text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: 1 + Math.floor(Math.random()*5)};
+      const n = {text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
       f.notes = f.notes||[]; f.notes.push(n); saveFriend(f); createNote(n, f); $('#noteModal').close();
     });
     $('#btnAddNote').addEventListener('click', ()=> { $('#noteText').value=''; $('#noteModal').showModal(); setTimeout(()=>$('#noteText').focus(),0); });
     $('#btnMetToday').addEventListener('click', ()=>{
       const today=new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
       const t=`今日会った：${y}-${m}-${d}`; const f = loadFriend(currentId); if(!f) return;
-      const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: 1 + Math.floor(Math.random()*5)}; f.notes.push(n); saveFriend(f); createNote(n, f);
+      const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); saveFriend(f); createNote(n, f);
     });
 
     [$('#name'),$('#breed'),$('#color'),$('#age'),$('#created')].forEach(inp=>{
@@ -431,7 +514,8 @@
       });
     });
 
-    $('#edit-photo').addEventListener('change', async (e)=>{
+    const editPhoto = $('#edit-photo');
+    editPhoto.addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if(!file) return;
       if (isHEIC(file)) alert('HEICはブラウザで不安定です。JPEG/PNGに変換してから選んでください。');
       try{
@@ -465,6 +549,16 @@
     });
 
     // ========= ルーティング =========
+    let currentId = null;
+    function bindEdit(f){
+      currentId = f.id;
+      $('#photo').src = f.photoDataURL || '';
+      $('#name').value=f.name||''; $('#breed').value=f.breed||''; $('#color').value=f.color||''; $('#age').value=f.age||''; $('#created').value=f.created||'';
+      $('#goodbyeText').textContent = f.goodbye || '—'; if(f.goodbyeActive) $('#card').classList.add('goodbye'); else $('#card').classList.remove('goodbye');
+      $('#chkConfirm').checked = !!f.deleteConfirm;
+      $('#stage').querySelectorAll('.note').forEach(n=>n.remove());
+      (f.notes||[]).forEach(n=> createNote(n, f));
+    }
     function onRoute(){
       const h = location.hash || routes.list;
       if(h.startsWith('#/edit/')){
@@ -474,13 +568,13 @@
       } else if(h===routes.add){
         show('add');
       } else {
-        show('list'); renderList();
+        show('list'); renderList(); showOnboardingIfNeeded();
       }
     }
     window.addEventListener('hashchange', onRoute);
     onRoute();
 
-    // （任意）SW登録：使っている場合のみ
+    // （任意）Service Worker を使う場合だけ有効に
     // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   </script>
 </body>
