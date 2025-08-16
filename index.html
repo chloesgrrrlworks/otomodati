@@ -47,7 +47,6 @@
     .stage img{width:100%;height:100%;object-fit:cover;display:block}
     .note{position:absolute;min-width:120px;max-width:240px;min-height:80px;padding:10px 12px 24px 12px;border-radius:8px;
       box-shadow:0 4px 10px rgba(0,0,0,.18);font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;cursor:grab;user-select:none;touch-action:none;border:1px solid rgba(0,0,0,.06);
-      /* 折返し：通常は自然、URLは折返し可。短文はJSで1行固定 */
       word-break: normal; overflow-wrap: anywhere;}
     .note.dragging{opacity:.85;cursor:grabbing}
     .note .close{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--danger);color:var(--danger);font-weight:700;line-height:19px;text-align:center;display:none;cursor:pointer}
@@ -85,22 +84,16 @@
         <option value="hc">高コントラスト</option>
       </select>
       <button class="btn" id="btnBack" style="display:none">← 一覧へ</button>
+      <button class="btn primary" id="goNew">＋ 新規登録</button>
     </div>
   </header>
 
   <div class="container">
     <!-- 1) トップ（一覧） -->
     <section id="view-list" data-view class="on">
-      <div class="row" style="justify-content:space-between;margin-bottom:.5rem">
-        <div class="hint">登録したお友達の一覧です。クリックで編集へ。</div>
-        <div class="toolbar">
-          <input id="q" placeholder="名前・犬種で検索" />
-          <button class="btn primary" id="goNew">＋ 新規登録</button>
-        </div>
-      </div>
       <div id="list" class="grid cards"></div>
       <footer>
-        <img src="assets/images/CGW_LOGO.png" alt="CGW" />
+        <img src="CGW_LOGO.png" alt="CGW" />
         <small>Chloe's Grrrl Works</small>
       </footer>
     </section>
@@ -132,7 +125,6 @@
     <!-- 3) 個別編集 -->
     <section id="view-edit" data-view>
       <div class="row" style="justify-content:space-between;margin:.25rem 0 .75rem">
-        <div class="hint">画像上で付箋をドラッグ。タップで「×」表示、×で削除（確認ON/OFF可）。</div>
         <div class="toolbar">
           <label class="btn" for="edit-photo">写真を選ぶ</label>
           <input id="edit-photo" type="file" accept="image/*" style="display:none" />
@@ -186,32 +178,9 @@
     </section>
   </div>
 
-  <!-- 新規登録: 初期付箋（必須）モーダル -->
-  <dialog id="initNotesModal">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">
-      最初の付箋（必須）
-    </div>
-    <form method="dialog" id="initNotesForm" style="padding:14px 16px;display:grid;gap:.75rem">
-      <label style="display:grid;gap:.35rem">
-        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須です</span></span>
-        <input id="nickInput" placeholder="例：クロちゃん" required />
-      </label>
-      <label style="display:grid;gap:.35rem">
-        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須です</span></span>
-        <input id="placeInput" placeholder="例：代々木公園" required />
-      </label>
-      <small class="hint">保存時に『出会い（日付）』の付箋も自動で追加されます。</small>
-      <div style="padding-top:.25rem;display:flex;gap:.5rem;justify-content:flex-end">
-        <button type="button" class="btn" id="initNotesCancel">戻る</button>
-        <button type="submit" class="btn primary" id="initNotesSave">保存</button>
-      </div>
-    </form>
-  </dialog>
-
   <script>
     // ========= 共通 =========
     const $ = sel => document.querySelector(sel);
-    const $all = sel => Array.from(document.querySelectorAll(sel));
     const themeSel = $('#themeSel');
     function setThemeMeta(t){ document.querySelector('meta[name="theme-color"]').setAttribute('content', t==='dark'?'#111215':'#ffffff'); }
     (function initTheme(){
@@ -246,7 +215,7 @@
         const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
         const demo = {
           id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
-          created: `${y}-${m}-${d}`, photoDataURL:'assets/images/CGW_LOGO.png', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
+          created: `${y}-${m}-${d}`, photoDataURL:'CGW_LOGO.png', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
           demo: true,
           notes: [
             {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
@@ -259,17 +228,13 @@
     })();
 
     // ========= トップ（一覧） =========
-    const listEl = $('#list'); const qEl = $('#q');
+    const listEl = document.getElementById('list');
     function renderList(){
-      const q = (qEl.value||'').trim().toLowerCase();
       const fsAll = loadFriends();
       const hasReal = fsAll.some(f => !f.demo);
       const data = hasReal ? fsAll.filter(f => !f.demo) : fsAll;
       listEl.innerHTML = '';
-      data.filter(f=>{
-        if(!q) return true;
-        return [f.name,f.breed].some(v=>String(v||'').toLowerCase().includes(q));
-      }).forEach(f=>{
+      data.forEach(f=>{
         const card = document.createElement('div'); card.className='card';
         const ph = document.createElement('div'); ph.className='ph';
         if(f.photoDataURL){ const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img); }
@@ -286,17 +251,19 @@
         b.addEventListener('click', ()=> location.hash = `${routes.edit}/${b.dataset.id}`);
       });
     }
-    $('#goNew').addEventListener('click', ()=> location.hash = routes.add);
-    qEl.addEventListener('input', renderList);
-    btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
 
-    // ========= 新規登録 =========
-    const newName = $('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created'), newPhoto=$('#new-photo');
+    // 新規登録ビューの入力
+    const newName = document.getElementById('new-name'),
+          newBreed=document.getElementById('new-breed'),
+          newColor=document.getElementById('new-color'),
+          newAge=document.getElementById('new-age'),
+          newCreated=document.getElementById('new-created'),
+          newPhoto=document.getElementById('new-photo');
     newCreated.valueAsDate = new Date();
-    $('#cancelNew').addEventListener('click', ()=> location.hash = routes.list);
+    document.getElementById('cancelNew').addEventListener('click', ()=> location.hash = routes.list);
     let newPhotoDataURL = '';
 
-    // iPhone HEIC 対策：FileReader + 拒否
+    // iPhone HEIC 対策
     function isHEIC(file){
       const name = (file?.name || '').toLowerCase();
       const type = (file?.type || '').toLowerCase();
@@ -310,66 +277,26 @@
         fr.readAsDataURL(file);
       });
     }
-
     newPhoto.addEventListener('change', async (e)=>{
       const f = e.target.files?.[0]; if(!f) return;
       if (isHEIC(f)) {
         alert('この写真はHEIC形式の可能性があり、ブラウザで表示できません。iPhoneの「設定 > カメラ > フォーマット」で“互換性優先（JPEG）”にするか、HEICをJPEG/PNGに変換してから選んでください。');
         return;
       }
-      try{
-        newPhotoDataURL = await readAsDataURL(f); // Safariでも安定
-      }catch(err){
-        alert('画像の読み込みに失敗しました：' + err.message);
-      }
+      try{ newPhotoDataURL = await readAsDataURL(f); }
+      catch(err){ alert('画像の読み込みに失敗しました：' + err.message); }
     });
-
-    // 初期付箋（必須）モーダル
-    const initNotesModal = $('#initNotesModal');
-    const initNotesForm  = $('#initNotesForm');
-    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
-    const errNick = $('#errNick'), errPlace = $('#errPlace');
-    const initNotesCancel = $('#initNotesCancel');
-
-    function setError(el, errEl, on){
-      if(on){ el.classList.add('invalid'); errEl.style.display='inline'; }
-      else  { el.classList.remove('invalid'); errEl.style.display='none'; }
-    }
-    function validateInitNotes(){
-      const n = nickInput.value.trim();
-      const p = placeInput.value.trim();
-      setError(nickInput, errNick, n==='');
-      setError(placeInput, errPlace, p==='');
-      return n!=='' && p!=='';
-    }
 
     document.getElementById('saveNew').addEventListener('click', ()=>{
-      // 開く前に初期化
-      nickInput.value=''; placeInput.value='';
-      setError(nickInput, errNick, false); setError(placeInput, errPlace, false);
-      initNotesModal.showModal();
-      setTimeout(()=> nickInput.focus(), 0);
-    });
-
-    initNotesForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      if(!validateInitNotes()) return; // 必須
-      finalizeFriendCreation({ nickname: nickInput.value.trim(), place: placeInput.value.trim() });
-    });
-    initNotesCancel.addEventListener('click', ()=> initNotesModal.close());
-    nickInput.addEventListener('input', validateInitNotes);
-    placeInput.addEventListener('input', validateInitNotes);
-
-    function finalizeFriendCreation({ nickname, place }) {
       const createdVal = newCreated.value || new Date().toISOString().slice(0,10);
       const baseX = 24, baseY = 24;
       const notesInit = [
         { text: `出会い：${createdVal}`, x: baseX, y: baseY, colorId: 1 },
-        { text: `あだ名：${nickname}`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
-        { text: `出会った場所：${place}`, x: baseX, y: baseY + 96, colorId: 2 }
+        { text: `あだ名：—`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
+        { text: `出会った場所：—`, x: baseX, y: baseY + 96, colorId: 2 }
       ];
       const f = {
-        id: uuid(),
+        id: 'f-' + Math.random().toString(36).slice(2,10),
         name: newName.value.trim(),
         breed: newBreed.value.trim(),
         color: newColor.value.trim(),
@@ -381,28 +308,37 @@
         deleteConfirm: true,
         notes: notesInit
       };
-      // 既存のデモを掃除してから保存（= 1人でも実データが入ったらデモ消滅）
       const fs = loadFriends().filter(x => !x.demo);
       fs.push(f); saveFriends(fs);
-      initNotesModal.close();
       location.hash = `${routes.edit}/${f.id}`;
-    }
+    });
 
     // ========= 個別編集 =========
-    const stage = $('#stage'), cardEl = $('#card'), photo = $('#photo');
-    const nameEl=$('#name'), breedEl=$('#breed'), colorEl=$('#color'), ageEl=$('#age'), createdEl=$('#created');
-    const noteModal = $('#noteModal'), noteText = $('#noteText');
-    const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
-    const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
-    const btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
+    const stage = document.getElementById('stage'),
+          cardEl = document.getElementById('card'),
+          photo = document.getElementById('photo');
+    const nameEl=document.getElementById('name'),
+          breedEl=document.getElementById('breed'),
+          colorEl=document.getElementById('color'),
+          ageEl=document.getElementById('age'),
+          createdEl=document.getElementById('created');
+    const noteModal = document.getElementById('noteModal'),
+          noteText = document.getElementById('noteText');
+    const goodbyeModal = document.getElementById('goodbyeModal'),
+          goodbyeInput = document.getElementById('goodbyeInput'),
+          goodbyeTextEl = document.getElementById('goodbyeText');
+    const editPhoto = document.getElementById('edit-photo'),
+          chkConfirm = document.getElementById('chkConfirm');
+    const btnAddNote=document.getElementById('btnAddNote'),
+          btnMetToday=document.getElementById('btnMetToday'),
+          btnExport=document.getElementById('btnExport'),
+          btnImport=document.getElementById('btnImport');
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
 
-    // URL自動リンク化
     function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
     function hasURL(t){ return /(https?:\/\/[^\s]+)/.test(t); }
-    // 表示専用：12文字まで1段、13〜24文字は2段に改行、25文字以降は切り捨て（URL含む場合は整形しない）
     function formatNoteTextForDisplay(t){
       if (hasURL(t)) return (t||'');
       const raw = (t||'').replace(/\r?\n/g, '');
@@ -412,23 +348,18 @@
     }
 
     let currentId = null;
-    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
-    function saveFriend(obj){
+    function loadFriendById(id){ return loadFriends().find(f=>f.id===id); }
+    function saveFriendByObj(obj){
       const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id);
       if(i>=0){ fs[i]=obj; saveFriends(fs); }
     }
 
     function bindEdit(f){
       currentId = f.id;
-      // 写真
       photo.src = f.photoDataURL || '';
-      // 固定項目
       nameEl.value=f.name||''; breedEl.value=f.breed||''; colorEl.value=f.color||''; ageEl.value=f.age||''; createdEl.value=f.created||'';
-      // お別れ
       goodbyeTextEl.textContent = f.goodbye || '—'; if(f.goodbyeActive) cardEl.classList.add('goodbye'); else cardEl.classList.remove('goodbye');
-      // 削除確認
       chkConfirm.checked = !!f.deleteConfirm;
-      // 付箋再描画
       stage.querySelectorAll('.note').forEach(n=>n.remove());
       (f.notes||[]).forEach(n=> createNote(n, f));
     }
@@ -441,7 +372,7 @@
         e.stopPropagation();
         if(chkConfirm.checked && !confirm('この付箋を削除しますか？')) return;
         f.notes = (f.notes||[]).filter(n=> !(n.text===text && n.x===x && n.y===y && n.colorId===colorId));
-        saveFriend(f); note.remove();
+        saveFriendByObj(f); note.remove();
       });
       const content=document.createElement('div'); content.className='content';
       const displayText = formatNoteTextForDisplay(text);
@@ -467,7 +398,7 @@
       function stopDrag(){
         if(!dragging) return; dragging=false; note.classList.remove('dragging');
         const idx = (f.notes||[]).findIndex(n=> n.text===text && n.x===x && n.y===y && n.colorId===colorId);
-        if(idx>=0){ f.notes[idx].x=parseFloat(note.style.left)||0; f.notes[idx].y=parseFloat(note.style.top)||0; saveFriend(f); }
+        if(idx>=0){ f.notes[idx].x=parseFloat(note.style.left)||0; f.notes[idx].y=parseFloat(note.style.top)||0; saveFriendByObj(f); }
       }
       note.addEventListener('pointerup', stopDrag); note.addEventListener('pointercancel', stopDrag);
 
@@ -477,25 +408,25 @@
     }
 
     function openNoteModal(pref=''){ noteText.value=pref; noteModal.showModal(); setTimeout(()=>noteText.focus(),0); }
-    $('#cancelModal').addEventListener('click', ()=> noteModal.close());
-    $('#saveNote').addEventListener('click', ()=>{
+    document.getElementById('cancelModal').addEventListener('click', ()=> noteModal.close());
+    document.getElementById('saveNote').addEventListener('click', ()=>{
       const t = noteText.value.trim(); if(!t) return;
-      const f = loadFriend(currentId); if(!f) return;
+      const f = loadFriendById(currentId); if(!f) return;
       const n = {text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
-      f.notes = f.notes||[]; f.notes.push(n); saveFriend(f); createNote(n, f); noteModal.close();
+      f.notes = f.notes||[]; f.notes.push(n); saveFriendByObj(f); createNote(n, f); noteModal.close();
     });
 
     btnAddNote.addEventListener('click', ()=> openNoteModal());
     btnMetToday.addEventListener('click', ()=>{
       const today=new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
-      const t=`今日会った：${y}-${m}-${d}`; const f = loadFriend(currentId); if(!f) return;
-      const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); saveFriend(f); createNote(n, f);
+      const t=`今日会った：${y}-${m}-${d}`; const f = loadFriendById(currentId); if(!f) return;
+      const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); saveFriendByObj(f); createNote(n, f);
     });
 
     [nameEl,breedEl,colorEl,ageEl,createdEl].forEach(inp=>{
       inp.addEventListener('change', ()=>{
-        const f = loadFriend(currentId); if(!f) return;
-        f.name=nameEl.value; f.breed=breedEl.value; f.color=colorEl.value; f.age=ageEl.value; f.created=createdEl.value; saveFriend(f);
+        const f = loadFriendById(currentId); if(!f) return;
+        f.name=nameEl.value; f.breed=breedEl.value; f.color=colorEl.value; f.age=ageEl.value; f.created=createdEl.value; saveFriendByObj(f);
       });
     });
 
@@ -507,58 +438,4 @@
       }
       try{
         const dataURL = await readAsDataURL(file);
-        const f = loadFriend(currentId); if(!f) return; f.photoDataURL=dataURL; saveFriend(f); photo.src=dataURL;
-      }catch(err){
-        alert('画像の読み込みに失敗しました：' + err.message);
-      }
-    });
-
-    function openGoodbyeModal(f){ goodbyeInput.value=''; goodbyeModal.showModal(); setTimeout(()=>goodbyeInput.focus(),0); }
-    $('#goodbyeSave').addEventListener('click', ()=>{
-      const f = loadFriend(currentId); if(!f) return;
-      const t = goodbyeInput.value.trim(); if(t){ f.goodbye=t; f.goodbyeActive=true; saveFriend(f); goodbyeTextEl.textContent=t; cardEl.classList.add('goodbye'); }
-      goodbyeModal.close();
-    });
-    $('#goodbyeCancel').addEventListener('click', ()=> goodbyeModal.close());
-
-    chkConfirm.addEventListener('change', ()=>{
-      const f = loadFriend(currentId); if(!f) return; f.deleteConfirm = chkConfirm.checked; saveFriend(f);
-    });
-
-    btnExport.addEventListener('click', ()=>{
-      const f = loadFriend(currentId); if(!f) return;
-      const blob = new Blob([JSON.stringify(f,null,2)], {type:'application/json'});
-      const a = document.createElement('a'); const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      a.href = URL.createObjectURL(blob); a.download = `friend-${f.name||f.id}-${ts}.json`; a.click(); URL.revokeObjectURL(a.href);
-    });
-    btnImport.addEventListener('change', async (e)=>{
-      const file = e.target.files?.[0]; if(!file) return;
-      try{
-        const text = await file.text(); const json = JSON.parse(text);
-        if(!json.id || json.id!==currentId){ alert('別のお友達データの可能性があります。'); return; }
-        saveFriend(json); bindEdit(json); alert('復元しました');
-      }catch(err){ alert('復元に失敗：'+err.message); }
-      e.target.value='';
-    });
-
-    // ========= ルーティング =========
-    function onRoute(){
-      const h = location.hash || routes.list;
-      if(h.startsWith('#/edit/')){
-        const id = h.split('/')[2]; const f = loadFriend(id);
-        if(!f){ alert('データが見つかりません'); location.hash = routes.list; return; }
-        show('edit'); bindEdit(f);
-      } else if(h===routes.add){
-        show('add');
-      } else {
-        show('list'); renderList();
-      }
-    }
-    window.addEventListener('hashchange', onRoute);
-    onRoute();
-
-    // ========= SW登録 =========
-    if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
-  </script>
-</body>
-</html>
+        const f = loadFriendBy
