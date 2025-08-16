@@ -5,6 +5,8 @@
   <title>お友達記録アプリ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -19,7 +21,7 @@
       --bg:#fff;--fg:#000;--card:#fff;--muted:#000;--border:#000;--btn:#fff;--btn-bd:#000;--link:#00f;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans JP","Yomogi",cursive}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans JP",sans-serif}
     header{position:sticky;top:0;z-index:10;display:flex;gap:.75rem;align-items:center;background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1rem}
     header h1{margin:0;font-size:1.05rem}
     .spacer{flex:1}
@@ -34,25 +36,17 @@
     .card .body{padding:.75rem}
     .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
     label{font-size:.85rem;color:var(--muted)}
-    input,textarea{font:inherit;border:1px solid var(--btn-bd);background:var(--btn);color:var(--fg);padding:.5rem .6rem;border-radius:.5rem}
+    input,select,textarea{font:inherit;border:1px solid var(--btn-bd);background:var(--btn);color:var(--fg);padding:.5rem .6rem;border-radius:.5rem}
     .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
     footer{display:flex;justify-content:center;align-items:center;gap:.5rem;color:var(--muted);padding:1rem}
-    footer img{height:22px}
+    footer img{height:20px}
 
     /* 編集ビュー（付箋） */
     .stage{position:relative;width:100%;aspect-ratio:4/3;background:#e0e0e0;overflow:hidden;border-radius:12px}
     [data-theme="dark"] .stage{background:#2a2d33}
     .stage img{width:100%;height:100%;object-fit:cover;display:block}
-
-    .note{
-      position:absolute;min-width:120px;max-width:240px;min-height:64px;
-      padding:10px 12px 24px 12px;border-radius:8px;border:1px solid rgba(0,0,0,.06);
-      box-shadow:0 4px 10px rgba(0,0,0,.18);
-      font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;
-      cursor:grab;user-select:none;touch-action:none;
-      /* 自動折返しは基本禁止。制御は content 側で行う。 */
-      word-break: normal; overflow-wrap: normal;
-    }
+    .note{position:absolute;min-width:120px;max-width:240px;min-height:80px;padding:10px 12px 24px 12px;border-radius:8px;
+      box-shadow:0 4px 10px rgba(0,0,0,.18);font-family:"Yomogi",cursive;font-size:16px;line-height:1.4;cursor:grab;user-select:none;word-break:break-word;touch-action:none;border:1px solid rgba(0,0,0,.06)}
     .note.dragging{opacity:.85;cursor:grabbing}
     .note .close{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--danger);color:var(--danger);font-weight:700;line-height:19px;text-align:center;display:none;cursor:pointer}
     .note.show-close .close{display:inline-block}
@@ -63,18 +57,15 @@
     .info{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-top:.75rem}
     .hint{opacity:.75;font-size:.9rem}
 
+    /* view toggles */
     [data-view]{display:none}
     [data-view].on{display:block}
 
+    /* モーダルの簡易スタイル */
     dialog{border:1px solid var(--border);border-radius:12px;padding:0;background:var(--card);color:var(--fg);max-width:520px;width:min(92vw,520px)}
     dialog::backdrop{background:rgba(0,0,0,.3)}
     .error{color:#b00020;font-size:.85rem}
     .invalid{border-color:#b00020 !important; outline:0}
-
-    /* 文字数ルール適用箇所。URLは常に1行固定で切り捨て（横スクロールさせない） */
-    .note .content{ white-space: pre-wrap; word-break: normal; overflow-wrap: normal; }
-    .note .content.single-line{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display:block; max-width:100%; }
-    .note .content a{ white-space: nowrap; display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   </style>
 </head>
 <body>
@@ -88,27 +79,27 @@
         <option value="hc">高コントラスト</option>
       </select>
       <button class="btn" id="btnBack" style="display:none">← 一覧へ</button>
-      <button class="btn primary" id="goNew">＋ 新規登録</button>
     </div>
   </header>
 
   <div class="container">
-    <!-- 一覧 -->
+    <!-- 1) トップ（一覧） -->
     <section id="view-list" data-view class="on">
       <div class="row" style="justify-content:space-between;margin-bottom:.5rem">
         <div class="hint">登録したお友達の一覧です。クリックで編集へ。</div>
         <div class="toolbar">
           <input id="q" placeholder="名前・犬種で検索" />
+          <button class="btn primary" id="goNew">＋ 新規登録</button>
         </div>
       </div>
       <div id="list" class="grid cards"></div>
       <footer>
-        <img src="assets/images/CGW_LOGO.png" alt="CGW">
+        <img src="assets/images/CGW_LOGO.png" alt="CGW" />
         <small>Chloe's Grrrl Works</small>
       </footer>
     </section>
 
-    <!-- 新規登録 -->
+    <!-- 2) 新規登録 -->
     <section id="view-new" data-view>
       <div class="card">
         <div class="body grid" style="gap:.8rem">
@@ -118,9 +109,11 @@
           <div class="row"><label style="min-width:6rem">年齢</label><input id="new-age" placeholder="3"></div>
           <div class="row"><label style="min-width:6rem">初回入力日</label><input id="new-created" type="date"></div>
           <div class="row" style="align-items:flex-start">
-            <label class="btn" for="new-photo">写真を選ぶ</label>
-            <input type="file" id="new-photo" accept="image/*" style="display:none">
-            <small class="hint">HEICは非対応です（JPEG/PNGで選択）</small>
+            <label style="min-width:6rem">写真</label>
+            <div class="grid" style="grid-template-columns: 1fr auto;gap:.5rem;align-items:center">
+              <input type="file" id="new-photo" accept="image/*">
+              <small class="hint">選ばない場合は後で追加できます</small>
+            </div>
           </div>
           <div class="row" style="justify-content:flex-end;gap:.5rem">
             <button class="btn" id="cancelNew">キャンセル</button>
@@ -130,7 +123,7 @@
       </div>
     </section>
 
-    <!-- 個別編集 -->
+    <!-- 3) 個別編集 -->
     <section id="view-edit" data-view>
       <div class="row" style="justify-content:space-between;margin:.25rem 0 .75rem">
         <div class="hint">画像上で付箋をドラッグ。タップで「×」表示、×で削除（確認ON/OFF可）。</div>
@@ -187,36 +180,32 @@
     </section>
   </div>
 
-  <!-- 初回必須入力モーダル（キャンセル不可） -->
+  <!-- 新規登録: 初期付箋（必須）モーダル -->
   <dialog id="initNotesModal">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">最初の付箋（必須）</div>
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700">
+      最初の付箋（必須）
+    </div>
     <form method="dialog" id="initNotesForm" style="padding:14px 16px;display:grid;gap:.75rem">
       <label style="display:grid;gap:.35rem">
-        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須</span></span>
-        <input id="nickInput" required />
+        <span>呼び方（あだ名）<span class="error" id="errNick" style="display:none">※必須です</span></span>
+        <input id="nickInput" placeholder="例：クロちゃん" required />
       </label>
       <label style="display:grid;gap:.35rem">
-        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須</span></span>
-        <input id="placeInput" required />
+        <span>出会った場所 <span class="error" id="errPlace" style="display:none">※必須です</span></span>
+        <input id="placeInput" placeholder="例：代々木公園" required />
       </label>
       <small class="hint">保存時に『出会い（日付）』の付箋も自動で追加されます。</small>
       <div style="padding-top:.25rem;display:flex;gap:.5rem;justify-content:flex-end">
+        <button type="button" class="btn" id="initNotesCancel">戻る</button>
         <button type="submit" class="btn primary" id="initNotesSave">保存</button>
       </div>
     </form>
   </dialog>
 
-  <footer>
-    <img src="assets/images/CGW_LOGO.png" alt="CGW">
-  </footer>
-
   <script>
-    // ========= ユーティリティ＆テーマ =========
-    const $ = s => document.querySelector(s);
-    const $all = s => Array.from(document.querySelectorAll(s));
-    const routes = { list:'#/list', add:'#/new', edit:'#/edit' };
-    const views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
-    const btnBack = $('#btnBack');
+    // ========= 共通 =========
+    const $ = sel => document.querySelector(sel);
+    const $all = sel => Array.from(document.querySelectorAll(sel));
     const themeSel = $('#themeSel');
     function setThemeMeta(t){ document.querySelector('meta[name="theme-color"]').setAttribute('content', t==='dark'?'#111215':'#ffffff'); }
     (function initTheme(){
@@ -230,27 +219,28 @@
       });
     })();
 
+    const routes = { list:'#/list', add:'#/new', edit:'#/edit' }; // #/edit/:id
+    const views = { list:$('#view-list'), add:$('#view-new'), edit:$('#view-edit') };
+    const btnBack = $('#btnBack');
     function show(view){
       Object.values(views).forEach(v=>v.classList.remove('on'));
       views[view].classList.add('on');
       btnBack.style.display = (view==='list') ? 'none' : 'inline-block';
     }
 
-    function uuid(){ return 'f-' + Math.random().toString(36).slice(2,10); }
+    // ========= モデル =========
     function loadFriends(){ try { return JSON.parse(localStorage.getItem('friends')||'[]'); } catch(e){ return []; } }
     function saveFriends(arr){ localStorage.setItem('friends', JSON.stringify(arr)); }
+    function uuid(){ return 'f-' + Math.random().toString(36).slice(2,10); }
 
-    // ========= デモデータ（空なら1件） =========
+    // 初回デモ（空なら1件）
     (function seed(){
       const fs = loadFriends();
       if(fs.length===0){
         const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
         const demo = {
           id: uuid(), name:'クロエ', breed:'フラットコーテッドレトリーバー', color:'ブラック', age:'3',
-          created: `${y}-${m}-${d}`,
-          photoDataURL:'assets/images/CGW_LOGO.png',
-          goodbye:'—', goodbyeActive:false, deleteConfirm:true,
-          demo: true,
+          created: `${y}-${m}-${d}`, photoDataURL:'', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
           notes: [
             {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
             {text:'あだ名：クロちゃん', x:220, y:60, colorId:3},
@@ -261,71 +251,20 @@
       }
     })();
 
-    // ========= 起動時オンボーディング（必須） =========
-    const initNotesModal = $('#initNotesModal');
-    const initNotesForm  = $('#initNotesForm');
-    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
-    const errNick = $('#errNick'), errPlace = $('#errPlace');
-
-    initNotesModal.addEventListener('cancel', e => e.preventDefault());
-    initNotesModal.addEventListener('close', e => {
-      if (!localStorage.getItem('onboarded')) initNotesModal.showModal();
-    });
-    function showOnboardingIfNeeded(){
-      const fs = loadFriends();
-      const hasReal = fs.some(f => !f.demo);
-      if (!localStorage.getItem('onboarded') && !hasReal) {
-        errNick.style.display='none'; errPlace.style.display='none';
-        nickInput.value=''; placeInput.value='';
-        initNotesModal.showModal();
-        setTimeout(()=>nickInput.focus(),0);
-      }
-    }
-    initNotesForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const nick = nickInput.value.trim();
-      const place = placeInput.value.trim();
-      errNick.style.display = nick? 'none':'inline';
-      errPlace.style.display = place? 'none':'inline';
-      if(!nick || !place) return;
-
-      const today = new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
-      const f = {
-        id: uuid(),
-        name: '', breed:'', color:'', age:'',
-        created: `${y}-${m}-${d}`,
-        photoDataURL: '', goodbye:'—', goodbyeActive:false, deleteConfirm:true,
-        notes: [
-          {text:`出会い：${y}-${m}-${d}`, x:24, y:24, colorId:1},
-          {text:`あだ名：${nick}`,        x:220, y:60, colorId:3},
-          {text:`出会った場所：${place}`, x:24,  y:120, colorId:2}
-        ]
-      };
-      const fs = loadFriends().filter(x=>!x.demo); // デモ消去
-      fs.push(f); saveFriends(fs);
-      localStorage.setItem('onboarded','1');
-      initNotesModal.close();
-      location.hash = `#/edit/${f.id}`;
-    });
-
-    // ========= 一覧 =========
+    // ========= トップ（一覧） =========
     const listEl = $('#list'); const qEl = $('#q');
     function renderList(){
       const q = (qEl.value||'').trim().toLowerCase();
-      const fsAll = loadFriends();
-      const hasReal = fsAll.some(f => !f.demo);
-      const data = hasReal ? fsAll.filter(f => !f.demo) : fsAll;
+      const fs = loadFriends();
       listEl.innerHTML = '';
-      data.filter(f=>{
+      fs.filter(f=>{
         if(!q) return true;
         return [f.name,f.breed].some(v=>String(v||'').toLowerCase().includes(q));
       }).forEach(f=>{
         const card = document.createElement('div'); card.className='card';
         const ph = document.createElement('div'); ph.className='ph';
-        if(f.photoDataURL){
-          const img=new Image();
-          img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img);
-        } else { ph.textContent='No Photo'; }
+        if(f.photoDataURL){ const img=new Image(); img.src=f.photoDataURL; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; ph.innerHTML=''; ph.appendChild(img); }
+        else { ph.textContent='No Photo'; }
         const body = document.createElement('div'); body.className='body';
         body.innerHTML = `<div style="font-weight:700">${f.name||'(無名)'}</div>
           <div class="hint">${f.breed||'-'}／${f.color||'-'}／${f.age||'-'}歳</div>
@@ -338,89 +277,64 @@
         b.addEventListener('click', ()=> location.hash = `${routes.edit}/${b.dataset.id}`);
       });
     }
-    qEl.addEventListener('input', renderList);
     $('#goNew').addEventListener('click', ()=> location.hash = routes.add);
-    btnBack.addEventListener('click', ()=> { location.hash = routes.list; });
-
-    // ========= テキスト整形：12=1行、13〜24=2行、25〜切り捨て（全角基準） =========
-    function visualLen(str){ let w=0; for (const ch of (str||'')) w += (ch.charCodeAt(0)<=0xFF)?0.5:1; return w; }
-    function splitToTwoLines(text, firstLimit=12, maxTotal=24){
-      // URL を含む場合は常に 1 行固定（リンクは横スクロールさせず、末尾を省略）
-      if (/(https?:\/\/[^\s]+)/.test(text||'')) return { html:(text||''), singleLine:true };
-      const raw=(text||'').replace(/\r?\n/g,'');
-      let line1='', line2='', w=0;
-      for (const ch of raw){
-        const add=(ch.charCodeAt(0)<=0xFF)?0.5:1;
-        if (w+add<=firstLimit){ line1+=ch; w+=add; }
-        else { line2+=ch; w+=add; }
-        if (w>=maxTotal) break;
-      }
-      if (!line2) return { html: line1, singleLine: true };
-      return { html: line1+'\n'+line2, singleLine:false };
-    }
-    function linkify(t){
-      return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`);
-    }
-
-    // ========= 画像：ObjectURL プレビュー → JPEG圧縮保存 =========
-    function isHEIC(file){
-      const name=(file?.name||'').toLowerCase(), type=(file?.type||'').toLowerCase();
-      return type.includes('heic') || name.endsWith('.heic') || type.includes('heif');
-    }
-    async function fileToCompressedDataURL(file, maxDim=1600, quality=0.85){
-      let imgBitmap = null;
-      if (self.createImageBitmap) {
-        try{ imgBitmap = await createImageBitmap(file); }catch(_){}
-      }
-      let w,h,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
-      if (imgBitmap){
-        w=imgBitmap.width; h=imgBitmap.height;
-        const scale = Math.min(1, maxDim/Math.max(w,h));
-        canvas.width = Math.max(1,Math.round(w*scale));
-        canvas.height= Math.max(1,Math.round(h*scale));
-        ctx.drawImage(imgBitmap,0,0,canvas.width,canvas.height);
-      }else{
-        const url=URL.createObjectURL(file);
-        const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
-        URL.revokeObjectURL(url);
-        w=img.naturalWidth; h=img.naturalHeight;
-        const scale = Math.min(1, maxDim/Math.max(w,h));
-        canvas.width = Math.max(1,Math.round(w*scale));
-        canvas.height= Math.max(1,Math.round(h*scale));
-        ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      }
-      return canvas.toDataURL('image/jpeg', quality);
-    }
-    function previewToImageElement(file, imgEl){
-      const blobURL = URL.createObjectURL(file);
-      imgEl.onload = ()=> URL.revokeObjectURL(blobURL);
-      imgEl.onerror = ()=> { URL.revokeObjectURL(blobURL); alert('この画像はプレビューできません（HEIC等）。JPEG/PNGに変換してください。'); };
-      imgEl.src = blobURL;
-    }
+    qEl.addEventListener('input', renderList);
+    btnBack.addEventListener('click', ()=> history.pushState({},'', routes.list));
 
     // ========= 新規登録 =========
-    const newName=$('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created');
-    const newPhotoInput = $('#new-photo'); newCreated.valueAsDate = new Date();
-    $('#cancelNew').addEventListener('click', ()=> location.hash = routes.list);
+    const newName = $('#new-name'), newBreed=$('#new-breed'), newColor=$('#new-color'), newAge=$('#new-age'), newCreated=$('#new-created'), newPhoto=$('#new-photo');
+    newCreated.valueAsDate = new Date();
+    $('#cancelNew').addEventListener('click', ()=> history.pushState({},'', routes.list));
     let newPhotoDataURL = '';
-
-    newPhotoInput.addEventListener('change', async (e)=>{
+    newPhoto.addEventListener('change', async (e)=>{
       const f = e.target.files?.[0]; if(!f) return;
-      if (isHEIC(f)) alert('HEICはブラウザで不安定です。JPEG/PNGに変換してから選んでください。');
-      try{
-        previewToImageElement(f, $('#photo')); // 一旦プレビューを編集ビューのimgへ
-        newPhotoDataURL = await fileToCompressedDataURL(f, 1600, 0.85);
-      }catch(err){ alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明')); }
-      finally{ e.target.value=''; }
+      const buf = await f.arrayBuffer(); let bin=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+      newPhotoDataURL = `data:${f.type};base64,` + btoa(bin);
     });
 
-    $('#saveNew').addEventListener('click', ()=>{
+    // 初期付箋（必須）モーダル
+    const initNotesModal = $('#initNotesModal');
+    const initNotesForm  = $('#initNotesForm');
+    const nickInput = $('#nickInput'), placeInput = $('#placeInput');
+    const errNick = $('#errNick'), errPlace = $('#errPlace');
+    const initNotesCancel = $('#initNotesCancel');
+
+    function setError(el, errEl, on){
+      if(on){ el.classList.add('invalid'); errEl.style.display='inline'; }
+      else  { el.classList.remove('invalid'); errEl.style.display='none'; }
+    }
+    function validateInitNotes(){
+      const n = nickInput.value.trim();
+      const p = placeInput.value.trim();
+      setError(nickInput, errNick, n==='');
+      setError(placeInput, errPlace, p==='');
+      return n!=='' && p!=='';
+    }
+
+    document.getElementById('saveNew').addEventListener('click', ()=>{
+      // 開く前に初期化
+      nickInput.value=''; placeInput.value='';
+      setError(nickInput, errNick, false); setError(placeInput, errPlace, false);
+      initNotesModal.showModal();
+      setTimeout(()=> nickInput.focus(), 0);
+    });
+
+    initNotesForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      if(!validateInitNotes()) return; // 必須
+      finalizeFriendCreation({ nickname: nickInput.value.trim(), place: placeInput.value.trim() });
+    });
+    initNotesCancel.addEventListener('click', ()=> initNotesModal.close());
+    nickInput.addEventListener('input', validateInitNotes);
+    placeInput.addEventListener('input', validateInitNotes);
+
+    function finalizeFriendCreation({ nickname, place }) {
       const createdVal = newCreated.value || new Date().toISOString().slice(0,10);
       const baseX = 24, baseY = 24;
       const notesInit = [
         { text: `出会い：${createdVal}`, x: baseX, y: baseY, colorId: 1 },
-        { text: `あだ名：—`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
-        { text: `出会った場所：—`, x: baseX, y: baseY + 96, colorId: 2 }
+        { text: `あだ名：${nickname}`,   x: baseX + 196, y: baseY + 16, colorId: 3 },
+        { text: `出会った場所：${place}`, x: baseX, y: baseY + 96, colorId: 2 }
       ];
       const f = {
         id: uuid(),
@@ -429,33 +343,54 @@
         color: newColor.value.trim(),
         age: newAge.value.trim(),
         created: createdVal,
-        photoDataURL: newPhotoDataURL || '',
+        photoDataURL: (typeof newPhotoDataURL === 'string' ? newPhotoDataURL : '') || '',
         goodbye: '—',
         goodbyeActive: false,
         deleteConfirm: true,
         notes: notesInit
       };
-      const fs = loadFriends().filter(x => !x.demo); // デモ消去
-      fs.push(f); saveFriends(fs);
+      const fs = loadFriends(); fs.push(f); saveFriends(fs);
+      initNotesModal.close();
       location.hash = `${routes.edit}/${f.id}`;
-    });
+    }
 
     // ========= 個別編集 =========
     const stage = $('#stage'), cardEl = $('#card'), photo = $('#photo');
     const nameEl=$('#name'), breedEl=$('#breed'), colorEl=$('#color'), ageEl=$('#age'), createdEl=$('#created');
     const noteModal = $('#noteModal'), noteText = $('#noteText');
     const goodbyeModal = $('#goodbyeModal'), goodbyeInput = $('#goodbyeInput'), goodbyeTextEl = $('#goodbyeText');
-    const chkConfirm = $('#chkConfirm');
+    const editPhoto = $('#edit-photo'), chkConfirm = $('#chkConfirm');
     const btnAddNote=$('#btnAddNote'), btnMetToday=$('#btnMetToday'), btnExport=$('#btnExport'), btnImport=$('#btnImport');
-    const editPhoto = $('#edit-photo'); // ← 重複定義を1つに統一
 
     function randomColorId(){ return 1 + Math.floor(Math.random()*5); }
     function clamp(n, mi, ma){ return Math.min(Math.max(n, mi), ma); }
+    function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, s=>`<a href="${s}" target="_blank" rel="noreferrer noopener">${s}</a>`); }
+
+    let currentId = null;
+    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
+    function saveFriend(obj){
+      const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id);
+      if(i>=0){ fs[i]=obj; saveFriends(fs); }
+    }
+
+    function bindEdit(f){
+      currentId = f.id;
+      // 写真
+      photo.src = f.photoDataURL || '';
+      // 固定項目
+      nameEl.value=f.name||''; breedEl.value=f.breed||''; colorEl.value=f.color||''; ageEl.value=f.age||''; createdEl.value=f.created||'';
+      // お別れ
+      goodbyeTextEl.textContent = f.goodbye || '—'; if(f.goodbyeActive) cardEl.classList.add('goodbye'); else cardEl.classList.remove('goodbye');
+      // 削除確認
+      chkConfirm.checked = !!f.deleteConfirm;
+      // 付箋再描画
+      stage.querySelectorAll('.note').forEach(n=>n.remove());
+      (f.notes||[]).forEach(n=> createNote(n, f));
+    }
 
     function createNote({text,x=40,y=40,colorId=randomColorId()}, f){
-      const note=document.createElement('div'); note.className='note'; note.dataset.color=String(colorId);
+      const note=document.createElement('div'); note.className='note'; note.dataset.color=String(colorId); note.dataset.text=text;
       note.style.left=x+'px'; note.style.top=y+'px';
-
       const close=document.createElement('button'); close.type='button'; close.className='close'; close.textContent='×'; close.title='削除';
       close.addEventListener('click', e=>{
         e.stopPropagation();
@@ -463,20 +398,10 @@
         f.notes = (f.notes||[]).filter(n=> !(n.text===text && n.x===x && n.y===y && n.colorId===colorId));
         saveFriend(f); note.remove();
       });
-
-      const content=document.createElement('div'); content.className='content';
-
-      const fmt = splitToTwoLines(text, 12, 24);
-      if (fmt.singleLine) content.classList.add('single-line');
-      // \n → <br>、URLは常にnowrapで省略表示
-      content.innerHTML = linkify(fmt.html).replace(/\n/g,'<br>');
-
+      const content=document.createElement('div'); content.className='content'; content.innerHTML=linkify(text);
       note.appendChild(close); note.appendChild(content);
 
-      note.addEventListener('click', e=>{
-        if(e.target.closest('.close')) return;
-        if(!note.classList.contains('dragging')) note.classList.toggle('show-close');
-      });
+      note.addEventListener('click', e=>{ if(e.target.closest('.close')) return; if(!note.classList.contains('dragging')) note.classList.toggle('show-close'); });
 
       let dragging=false, offX=0, offY=0;
       note.addEventListener('pointerdown', e=>{
@@ -499,58 +424,59 @@
       note.addEventListener('pointerup', stopDrag); note.addEventListener('pointercancel', stopDrag);
 
       stage.appendChild(note);
-      if(/お別れ/.test(text)){ setTimeout(()=> { $('#goodbyeInput').value=''; $('#goodbyeModal').showModal(); }, 0); }
+      if(/お別れ/.test(text)){ setTimeout(()=> openGoodbyeModal(f), 0); }
       return note;
     }
 
-    function loadFriend(id){ return loadFriends().find(f=>f.id===id); }
-    function saveFriend(obj){ const fs = loadFriends(); const i = fs.findIndex(x=>x.id===obj.id); if(i>=0){ fs[i]=obj; saveFriends(fs); } }
-
-    $('#cancelModal').addEventListener('click', ()=> $('#noteModal').close());
+    function openNoteModal(pref=''){ noteText.value=pref; noteModal.showModal(); setTimeout(()=>noteText.focus(),0); }
+    $('#cancelModal').addEventListener('click', ()=> noteModal.close());
     $('#saveNote').addEventListener('click', ()=>{
-      const t = $('#noteText').value.trim(); if(!t) return;
+      const t = noteText.value.trim(); if(!t) return;
       const f = loadFriend(currentId); if(!f) return;
       const n = {text:t, x: 40+Math.random()*60, y: 40+Math.random()*40, colorId: randomColorId()};
-      f.notes = f.notes||[]; f.notes.push(n); saveFriend(f); createNote(n, f); $('#noteModal').close();
+      f.notes = f.notes||[]; f.notes.push(n); saveFriend(f); createNote(n, f); noteModal.close();
     });
-    $('#btnAddNote').addEventListener('click', ()=> { $('#noteText').value=''; $('#noteModal').showModal(); setTimeout(()=>$('#noteText').focus(),0); });
-    $('#btnMetToday').addEventListener('click', ()=>{
+
+    btnAddNote.addEventListener('click', ()=> openNoteModal());
+    btnMetToday.addEventListener('click', ()=>{
       const today=new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0');
       const t=`今日会った：${y}-${m}-${d}`; const f = loadFriend(currentId); if(!f) return;
       const n={text:t, x:80+Math.random()*120, y:60+Math.random()*80, colorId: randomColorId()}; f.notes.push(n); saveFriend(f); createNote(n, f);
     });
 
-    [$('#name'),$('#breed'),$('#color'),$('#age'),$('#created')].forEach(inp=>{
+    [nameEl,breedEl,colorEl,ageEl,createdEl].forEach(inp=>{
       inp.addEventListener('change', ()=>{
         const f = loadFriend(currentId); if(!f) return;
-        f.name=$('#name').value; f.breed=$('#breed').value; f.color=$('#color').value; f.age=$('#age').value; f.created=$('#created').value; saveFriend(f);
+        f.name=nameEl.value; f.breed=breedEl.value; f.color=colorEl.value; f.age=ageEl.value; f.created=createdEl.value; saveFriend(f);
       });
     });
 
     editPhoto.addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if(!file) return;
-      if (isHEIC(file)) alert('HEICはブラウザで不安定です。JPEG/PNGに変換してから選んでください。');
-      try{
-        previewToImageElement(file, $('#photo'));
-        const dataURL = await fileToCompressedDataURL(file, 1600, 0.85);
-        const f = loadFriend(currentId); if(!f) return; f.photoDataURL=dataURL; saveFriend(f);
-      }catch(err){ alert('画像の読み込みに失敗しました：' + (err?.message || '原因不明')); }
-      finally{ e.target.value=''; }
+      const buf = await file.arrayBuffer(); let bin=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+      const dataURL = `data:${file.type};base64,` + btoa(bin);
+      const f = loadFriend(currentId); if(!f) return; f.photoDataURL=dataURL; saveFriend(f); photo.src=dataURL;
     });
 
+    function openGoodbyeModal(f){ goodbyeInput.value=''; goodbyeModal.showModal(); setTimeout(()=>goodbyeInput.focus(),0); }
     $('#goodbyeSave').addEventListener('click', ()=>{
       const f = loadFriend(currentId); if(!f) return;
-      const t = $('#goodbyeInput').value.trim(); if(t){ f.goodbye=t; f.goodbyeActive=true; saveFriend(f); $('#goodbyeText').textContent=t; $('#card').classList.add('goodbye'); }
-      $('#goodbyeModal').close();
+      const t = goodbyeInput.value.trim(); if(t){ f.goodbye=t; f.goodbyeActive=true; saveFriend(f); goodbyeTextEl.textContent=t; cardEl.classList.add('goodbye'); }
+      goodbyeModal.close();
     });
-    $('#goodbyeCancel').addEventListener('click', ()=> $('#goodbyeModal').close());
-    $('#btnExport').addEventListener('click', ()=>{
+    $('#goodbyeCancel').addEventListener('click', ()=> goodbyeModal.close());
+
+    chkConfirm.addEventListener('change', ()=>{
+      const f = loadFriend(currentId); if(!f) return; f.deleteConfirm = chkConfirm.checked; saveFriend(f);
+    });
+
+    btnExport.addEventListener('click', ()=>{
       const f = loadFriend(currentId); if(!f) return;
       const blob = new Blob([JSON.stringify(f,null,2)], {type:'application/json'});
       const a = document.createElement('a'); const ts = new Date().toISOString().replace(/[:.]/g,'-');
       a.href = URL.createObjectURL(blob); a.download = `friend-${f.name||f.id}-${ts}.json`; a.click(); URL.revokeObjectURL(a.href);
     });
-    $('#btnImport').addEventListener('change', async (e)=>{
+    btnImport.addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if(!file) return;
       try{
         const text = await file.text(); const json = JSON.parse(text);
@@ -561,16 +487,6 @@
     });
 
     // ========= ルーティング =========
-    let currentId = null;
-    function bindEdit(f){
-      currentId = f.id;
-      $('#photo').src = f.photoDataURL || '';
-      $('#name').value=f.name||''; $('#breed').value=f.breed||''; $('#color').value=f.color||''; $('#age').value=f.age||''; $('#created').value=f.created||'';
-      $('#goodbyeText').textContent = f.goodbye || '—'; if(f.goodbyeActive) $('#card').classList.add('goodbye'); else $('#card').classList.remove('goodbye');
-      $('#chkConfirm').checked = !!f.deleteConfirm;
-      $('#stage').querySelectorAll('.note').forEach(n=>n.remove());
-      (f.notes||[]).forEach(n=> createNote(n, f));
-    }
     function onRoute(){
       const h = location.hash || routes.list;
       if(h.startsWith('#/edit/')){
@@ -580,13 +496,14 @@
       } else if(h===routes.add){
         show('add');
       } else {
-        show('list'); renderList(); showOnboardingIfNeeded();
+        show('list'); renderList();
       }
     }
     window.addEventListener('hashchange', onRoute);
     onRoute();
 
-    // if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+    // ========= SW登録 =========
+    if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   </script>
 </body>
 </html>
